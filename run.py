@@ -18,9 +18,12 @@ if __name__ == "__main__":
     app.config['FACCLOUD_NS'] = config['PROD']['FACCLOUD_NS']
     app.config['SECRET_KEY'] = config['PROD']['SECRET_KEY']
 
-    from resources import test, sat_informations
+    from resources import test, sat_informations, requests_cfdis, cfdis
     app.register_blueprint(test.bp, url_prefix='/api/test')
     app.register_blueprint(sat_informations.bp,
                            url_prefix='/api/satinformations')
+    app.register_blueprint(requests_cfdis.bp,
+                           url_prefix='/api/requestscfdis')
+    app.register_blueprint(cfdis.bp, url_prefix='/api/cfdis')
 
     app.run(host='0.0.0.0')
