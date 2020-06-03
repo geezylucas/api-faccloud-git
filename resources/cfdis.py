@@ -385,9 +385,11 @@ def total_cdfis_to_type(id):
     }, }), 200
 
 
-@bp.route('/getrecords/<info_id>', methods=['GET'])
+@bp.route('/getrecords/<info_id>', methods=['GET', 'POST'])
 def get_records(info_id):
-    body = request.get_json()
+    body = None
+    if request.method == 'POST':
+        body = request.get_json()
 
     page_size = int(request.args.get('pagesize'))
     page_num = int(request.args.get('pagenum'))
@@ -420,12 +422,7 @@ def get_limit_cfdis(page_size, page_num, info_id, type_comprobante, type_request
     # Calculate number of documents to skip
     skips = page_size * (page_num - 1)
 
-    comprobante_types = ''
-
-    if type_comprobante == 'Facturas':
-        comprobante_types = ['I', 'E']
-    else:
-        comprobante_types = [type_comprobante]
+    comprobante_types = type_comprobante.split("-")
 
     match_type_request = {}
     # PARA MATCH
@@ -452,7 +449,7 @@ def get_limit_cfdis(page_size, page_num, info_id, type_comprobante, type_request
         project_type_request.update({'Emisor.Rfc': 1, 'Receptor.Rfc': 1})
         second_project.update({'Rfc': '$Receptor.Rfc'})
 
-    if bool(filters):
+    if not filters is None:
         fecha_inicial = datetime.strptime(filters['dateIni'], '%Y-%m-%d') + \
             timedelta(hours=0, minutes=0, seconds=0)
         fecha_final = datetime.strptime(filters['dateFin'], '%Y-%m-%d') + \
@@ -464,10 +461,15 @@ def get_limit_cfdis(page_size, page_num, info_id, type_comprobante, type_request
             }})
 
         if filters['rfc'] != '':
+            rfc_filter = '^{}'.format(filters['rfc'])
             if type_request == 'r':
-                match_type_request.update({'Emisor.Rfc': filters['rfc']})
+                match_type_request.update({'Emisor.Rfc': {
+                    '$regex': rfc_filter, '$options': 'i'
+                }})
             elif type_request == 'e':
-                match_type_request.update({'Receptor.Rfc': filters["rfc"]})
+                match_type_request.update({'Receptor.Rfc': {
+                    '$regex': rfc_filter, '$options': 'i'
+                }})
 
         if filters['usocfdi'] != '':
             # CHECAR: esta parte la tenemos que hacer con un verdadero catalogo
