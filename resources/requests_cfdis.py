@@ -1,6 +1,6 @@
 import datetime
 from flask import Blueprint, request, jsonify
-from bson.json_util import dumps
+from bson.json_util import dumps, json
 from bson.objectid import ObjectId
 from database.db import db
 from cfdiclient import Autenticacion
@@ -12,7 +12,7 @@ bp = Blueprint('requestscfdis', __name__)
 
 @bp.route('', methods=['GET'])
 def get_requests():
-    return jsonify({'status': 'success', 'data': dumps(db.requestsCfdis.find({}))}), 200
+    return jsonify({'status': 'success', 'data': json.loads(dumps(db.requestsCfdis.find({})))}), 200
 
 
 @bp.route('', methods=['POST'])

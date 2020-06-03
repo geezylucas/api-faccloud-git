@@ -403,7 +403,7 @@ def get_records(info_id):
                                     )
 
     return jsonify({'status': 'success', 'data': {
-        'totalMonto': json.loads(result),
+        'totalRecords': json.loads(result),
         'cfdis': json.loads(cfdis)
     }}), 200
 
@@ -422,7 +422,7 @@ def get_limit_cfdis(page_size, page_num, info_id, type_comprobante, type_request
 
     comprobante_types = ''
 
-    if type_comprobante == 'I':
+    if type_comprobante == 'Facturas':
         comprobante_types = ['I', 'E']
     else:
         comprobante_types = [type_comprobante]
@@ -446,11 +446,11 @@ def get_limit_cfdis(page_size, page_num, info_id, type_comprobante, type_request
     if type_request == 'r':
         match_type_request.update({'Receptor.Rfc': applicant["rfc"]})
         project_type_request.update({'Receptor.Rfc': 1, 'Emisor.Rfc': 1})
-        second_project.update({'Emisor.Rfc': 1})
+        second_project.update({'Rfc': '$Emisor.Rfc'})
     elif type_request == 'e':
         match_type_request.update({'Emisor.Rfc': applicant["rfc"]})
         project_type_request.update({'Emisor.Rfc': 1, 'Receptor.Rfc': 1})
-        second_project.update({'Receptor.Rfc': 1})
+        second_project.update({'Rfc': '$Receptor.Rfc'})
 
     if bool(filters):
         fecha_inicial = datetime.strptime(filters['dateIni'], '%Y-%m-%d') + \
@@ -508,9 +508,9 @@ def get_limit_cfdis(page_size, page_num, info_id, type_comprobante, type_request
                 'convertedFecha': -1
             }
         }, {
-            '$skip': 0
+            '$skip': skips
         }, {
-            '$limit': 10
+            '$limit': page_size
         }, {
             '$project': second_project
         }
