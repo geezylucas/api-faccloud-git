@@ -1,4 +1,4 @@
-import datetime
+from datetime import datetime, timedelta
 from flask import Blueprint, request, jsonify
 from bson.json_util import dumps, json
 from bson.objectid import ObjectId
@@ -19,10 +19,10 @@ def get_requests():
 def insert_request():
     body = request.get_json()
 
-    fecha_inicial = datetime.datetime.strptime(body['datestart'], '%Y-%m-%d') + \
-        datetime.timedelta(hours=0, minutes=0, seconds=0)
-    fecha_final = datetime.datetime.strptime(body['dateend'], '%Y-%m-%d') + \
-        datetime.timedelta(hours=23, minutes=59, seconds=59)
+    fecha_inicial = datetime.strptime(
+        body['datestart'], '%Y-%m-%d') + timedelta(hours=0, minutes=0, seconds=0)
+    fecha_final = datetime.strptime(
+        body['dateend'], '%Y-%m-%d') + timedelta(hours=23, minutes=59, seconds=59)
 
     solicitante = db.satInformations.find_one({
         '_id': ObjectId(body["id"])
@@ -77,3 +77,78 @@ def insert_request():
         return jsonify({'status': 'success', 'data': {'_id': result}}), 201
     else:
         return jsonify({'status': 'error', 'message': result_solicitud["cod_estatus"]}), 500
+
+
+@bp.route('/<info_id>', methods=['GET', 'POST'])
+def get_request(info_id):
+    body = None
+    if request.method == 'POST':
+        body = request.get_json()
+
+    page_size = int(request.args.get('pagesize'))
+    page_num = int(request.args.get('pagenum'))
+
+    requests_cfdis, data_pagination = get_limit_requests(page_size=page_size,
+                                                         page_num=page_num,
+                                                         info_id=info_id,
+                                                         filters=body
+                                                         )
+
+    return jsonify({'status': 'success', 'data': {
+        'dataPagination': json.loads(data_pagination),
+        'requests': json.loads(requests_cfdis)
+    }}), 200
+
+
+def get_limit_requests(page_size, page_num, info_id, filters):
+    # Calculate number of documents to skip
+    skips = page_size * (page_num - 1)
+
+    filter = {'info_id': ObjectId(info_id)}
+
+    if not filters is None:
+        fecha_inicial = datetime.strptime(
+            filters['dateIni'], '%Y-%m-%d') + timedelta(hours=0, minutes=0, seconds=0)
+        fecha_final = datetime.strptime(
+            filters['dateFin'], '%Y-%m-%d') + timedelta(hours=23, minutes=59, seconds=59)
+        filter.update({
+            'daterequest': {
+                '$gte': fecha_inicial,
+                '$lte': fecha_final
+            }})
+
+    requests_cfdi = list(db.requestsCfdis.find(filter=filter,
+                                               projection={
+                                                   'typerequest': 1,
+                                                   'status': 1,
+                                                   'numcfdis': 1,
+                                                   'daterequest': 1
+                                               },
+                                               sort=list({
+                                                   'daterequest': -1
+                                               }.items()),
+                                               skip=skips,
+                                               limit=page_size))
+
+    data_pagination = {}
+
+    if len(requests_cfdi) != 0:
+        num = float(len(requests_cfdi)) / float(page_size)
+        if num.is_integer():
+            data_pagination.update({
+                "fieldsmatched": len(requests_cfdi),
+                "pages": int(num)
+            })
+        else:
+            data_pagination.update({
+                "fieldsmatched": len(requests_cfdi),
+                "pages": int(num + 1.0)
+            })
+    else:
+        data_pagination.update({
+            "fieldsmatched": 0,
+            "pages": 1
+        })
+
+    # Return data and pagination
+    return dumps(requests_cfdi), dumps(data_pagination)

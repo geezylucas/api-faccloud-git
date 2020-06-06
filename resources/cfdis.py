@@ -449,14 +449,10 @@ def get_records(info_id):
 
 
 def get_limit_cfdis(page_size, page_num, info_id, type_comprobante, type_request, filters):
-    """Function returns `page_size` number of documents after last_id
-    and the new last_id.
-    """
-
-    applicant = db.satInformations.find_one({'_id': ObjectId(info_id)})
-
     # Calculate number of documents to skip
     skips = page_size * (page_num - 1)
+
+    applicant = db.satInformations.find_one({'_id': ObjectId(info_id)})
 
     comprobante_types = type_comprobante.split("-")
 
