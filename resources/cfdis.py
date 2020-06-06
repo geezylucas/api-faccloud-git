@@ -300,65 +300,25 @@ def total_cdfis_to_type(id):
     type_user = request.args.get('typeuser')
     applicant = db.satInformations.find_one({"_id": ObjectId(id)})
 
-    last_receptor_cfdi = db.cfdis.aggregate([
+    last_receptor_cfdi = db.cfdis.find_one(
         {
-            '$match': {
-                'info_id': ObjectId(id),
-                'Receptor.Rfc': applicant['rfc']
-            }
+            'info_id': ObjectId(id),
+            'Receptor.Rfc': applicant['rfc']
         }, {
-            '$project': {
-                'Fecha': 1,
-            }
-        }, {
-            '$addFields': {
-                'convertedFecha': {
-                    '$toDate': '$Fecha'
-                }
-            }
-        }, {
-            '$sort': {
-                'convertedFecha': -1
-            }
-        }, {
-            '$limit': 1
-        }, {
-            '$project': {
-                'Fecha': 1,
-                '_id': 0
-            }
-        }
-    ])
+            'Fecha': 1,
+            '_id': 0
+        },
+        sort=list({'Fecha': 1}.items()))
 
-    last_emisor_cfdi = db.cfdis.aggregate([
+    last_emisor_cfdi = db.cfdis.find_one(
         {
-            '$match': {
-                'info_id': ObjectId(id),
-                'Emisor.Rfc': applicant['rfc']
-            }
+            'info_id': ObjectId(id),
+            'Emisor.Rfc': applicant['rfc']
         }, {
-            '$project': {
-                'Fecha': 1,
-            }
-        }, {
-            '$addFields': {
-                'convertedFecha': {
-                    '$toDate': '$Fecha'
-                }
-            }
-        }, {
-            '$sort': {
-                'convertedFecha': -1
-            }
-        }, {
-            '$limit': 1
-        }, {
-            '$project': {
-                'Fecha': 1,
-                '_id': 0
-            }
-        }
-    ])
+            'Fecha': 1,
+            '_id': 0
+        },
+        sort=list({'Fecha': 1}.items()))
 
     if type_user != 'g':
         found_request_type = db.requestsCfdis.aggregate([
@@ -369,15 +329,15 @@ def total_cdfis_to_type(id):
             }, {
                 '$group': {
                     '_id': '$typerequest',
-                    'totalNumCfdis': {
+                    'totalCfdis': {
                         '$sum': '$numcfdis'
                     }
                 }
             }
         ])
     else:
-        found_request_type = [{"_id": "r", "totalNumCfdis": None},
-                              {"_id": "e", "totalNumCfdis": None}]
+        found_request_type = [{"_id": "r", "totalCfdis": None},
+                              {"_id": "e", "totalCfdis": None}]
 
     return jsonify({'status': 'success', 'data': {
         'typesCFDI': json.loads(dumps(found_request_type)),
@@ -396,6 +356,7 @@ def get_cfdi(id):
             }
         }, {
             '$project': {
+                '_id': 0,
                 'Emisor.Rfc': 1,
                 'Emisor.Nombre': 1,
                 'Receptor.Rfc': 1,
@@ -443,7 +404,7 @@ def get_records(info_id):
                                               )
 
     return jsonify({'status': 'success', 'data': {
-        'totalRecords': json.loads(data_total_monto),
+        'dataPagination': json.loads(data_total_monto),
         'cfdis': json.loads(cfdis)
     }}), 200
 
@@ -456,50 +417,46 @@ def get_limit_cfdis(page_size, page_num, info_id, type_comprobante, type_request
 
     comprobante_types = type_comprobante.split("-")
 
-    match_type_request = {}
     # PARA MATCH
     # Emisor.Rfc or Receptor.Rfc por type_request
     # Receptor.UsoCFDI
     # Emisor.Rfc or Receptor.Rfc por filter
     # Range convertedFecha
+    filter_type_request = {
+        'TipoDeComprobante': {'$in': comprobante_types}
+    }
 
     project_type_request = {
         'Total': 1,
         'Fecha': 1,
     }
-    second_project = {
-        'Fecha': 1,
-        'Total': 1,
-    }
 
     if type_request == 'r':
-        match_type_request.update({'Receptor.Rfc': applicant["rfc"]})
-        project_type_request.update({'Receptor.Rfc': 1, 'Emisor.Rfc': 1})
-        second_project.update({'Rfc': '$Emisor.Rfc'})
+        filter_type_request.update({'Receptor.Rfc': applicant["rfc"]})
+        project_type_request.update({'Rfc': '$Emisor.Rfc'})
     elif type_request == 'e':
-        match_type_request.update({'Emisor.Rfc': applicant["rfc"]})
-        project_type_request.update({'Emisor.Rfc': 1, 'Receptor.Rfc': 1})
-        second_project.update({'Rfc': '$Receptor.Rfc'})
+        filter_type_request.update({'Emisor.Rfc': applicant["rfc"]})
+        project_type_request.update({'Rfc': '$Receptor.Rfc'})
 
     if not filters is None:
         fecha_inicial = datetime.strptime(
             filters['dateIni'], '%Y-%m-%d') + timedelta(hours=0, minutes=0, seconds=0)
         fecha_final = datetime.strptime(
             filters['dateFin'], '%Y-%m-%d') + timedelta(hours=23, minutes=59, seconds=59)
-        match_type_request.update({
-            'convertedFecha': {
-                '$gte': fecha_inicial,
-                '$lte': fecha_final
+        filter_type_request.update({
+            'Fecha': {
+                '$gte': fecha_inicial.isoformat(),
+                '$lte': fecha_final.isoformat()
             }})
 
         if filters['rfc'] != '':
             rfc_filter = '^{}'.format(filters['rfc'])
             if type_request == 'r':
-                match_type_request.update({'Emisor.Rfc': {
+                filter_type_request.update({'Emisor.Rfc': {
                     '$regex': rfc_filter, '$options': 'i'
                 }})
             elif type_request == 'e':
-                match_type_request.update({'Receptor.Rfc': {
+                filter_type_request.update({'Receptor.Rfc': {
                     '$regex': rfc_filter, '$options': 'i'
                 }})
 
@@ -510,61 +467,38 @@ def get_limit_cfdis(page_size, page_num, info_id, type_comprobante, type_request
                 "Devoluciones, descuentos o bonificaciones": "G02",
                 "Gastos en general": "G03"
             }
-            match_type_request.update({
+            filter_type_request.update({
                 'Receptor.UsoCFDI': switcher[filters['usocfdi']]
             })
-            project_type_request.update({'Receptor.UsoCFDI': 1})
 
     # Requires the PyMongo package. POAG760804RP8
     # https://api.mongodb.com/python/current
 
-    all_cfdis = db.cfdis.aggregate([
+    list_cfdis = list(db.cfdis.aggregate([
         {
-            '$match': {
-                'info_id': applicant['_id'],
-                'TipoDeComprobante': {'$in': comprobante_types}
-            }
+            '$match': filter_type_request
         }, {
             '$project': project_type_request
         }, {
-            '$addFields': {
-                'convertedFecha': {
-                    '$toDate': '$Fecha'
-                },
-                'Monto': {
-                    '$toDecimal': '$Total'
-                }
-            }
-        }, {
-            '$match': match_type_request
-        }, {
             '$sort': {
-                'convertedFecha': -1
+                'Fecha': -1
             }
         }, {
             '$skip': skips
         }, {
             '$limit': page_size
-        }, {
-            '$project': second_project
         }
-    ])
+    ]))
 
-    result_total_monto = db.cfdis.aggregate([
+    pagination_monto = list(db.cfdis.aggregate([
         {
-            '$match': {
-                'info_id': applicant['_id'],
-                'TipoDeComprobante': {'$in': comprobante_types}
-            }
+            '$match': filter_type_request
         }, {
             '$project': project_type_request
         }, {
             '$addFields': {
-                'convertedFecha': {'$toDate': '$Fecha'},
                 'Monto': {'$toDecimal': '$Total'}
             }
-        }, {
-            '$match': match_type_request
         }, {
             '$group': {
                 '_id': None,
@@ -574,31 +508,30 @@ def get_limit_cfdis(page_size, page_num, info_id, type_comprobante, type_request
                 'fieldsmatched': {'$sum': 1}
             }
         }
-    ])
+    ]))
 
-    list_total_monto = list(result_total_monto)
-    data_total_monto = {}
+    data_pagination_monto = {}
 
-    if len(list_total_monto) != 0:
-        num = float(list_total_monto[0]["fieldsmatched"]) / float(page_size)
+    if len(pagination_monto) != 0:
+        num = float(pagination_monto[0]["fieldsmatched"]) / float(page_size)
         if num.is_integer():
-            data_total_monto.update({
-                "totalMonto": list_total_monto[0]["totalMonto"],
-                "fieldsmatched": list_total_monto[0]["fieldsmatched"],
+            data_pagination_monto.update({
+                "totalMonto": pagination_monto[0]["totalMonto"],
+                "fieldsmatched": pagination_monto[0]["fieldsmatched"],
                 "pages": int(num)
             })
         else:
-            data_total_monto.update({
-                "totalMonto": list_total_monto[0]["totalMonto"],
-                "fieldsmatched": list_total_monto[0]["fieldsmatched"],
+            data_pagination_monto.update({
+                "totalMonto": pagination_monto[0]["totalMonto"],
+                "fieldsmatched": pagination_monto[0]["fieldsmatched"],
                 "pages": int(num + 1.0)
             })
     else:
-        data_total_monto.update({
+        data_pagination_monto.update({
             "totalMonto": {'$numberDecimal': 0},
             "fieldsmatched": 0,
             "pages": 1
         })
 
-    # Return data and last_id
-    return dumps(all_cfdis), dumps(data_total_monto)
+    # Return data and pagination
+    return dumps(list_cfdis), dumps(data_pagination_monto)
