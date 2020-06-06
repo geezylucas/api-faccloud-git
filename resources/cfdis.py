@@ -66,6 +66,7 @@ def insert_cfdis(list_files: List[str], folder_extract: str, info_id: ObjectId, 
     for f in list_files:
         new_cfdi = {
             "info_id": info_id,
+            # TODO: Eso se evaluara si lo envian
             "request_id": request_id
         }
 
@@ -387,25 +388,38 @@ def total_cdfis_to_type(id):
 
 @bp.route('/<id>', methods=['GET'])
 def get_cfdi(id):
-    cfdi_found = db.cfdis.find_one({"_id": ObjectId(id)}, {
-        "Emisor.Rfc": 1,
-        "Emisor.Nombre": 1,
-        "Receptor.Rfc": 1,
-        "Receptor.Nombre": 1,
-        "Receptor.UsoCFDI": 1,
-        "Fecha": 1,
-        "SubTotal": 1,
-        "Total": 1,
-        "TipoDeComprobante": 1,
-        "Descuento": 1,
-        "Conceptos.Cantidad": 1,
-        "Conceptos.Descripcion": 1,
-        "Conceptos.ValorUnitario": 1,
-        "Conceptos.Importe": 1,
-        "Conceptos.Descuento": 1,
-        "Impuestos.TotalImpuestosTrasladados": 1,
-        "Impuestos.TotalImpuestosRetenidos": 1,
-    })
+   # TODO: Agregar validacion por si no existe
+    cfdi_found = db.cfdis.aggregate([
+        {
+            '$match': {
+                '_id': ObjectId(id)
+            }
+        }, {
+            '$project': {
+                'Emisor.Rfc': 1,
+                'Emisor.Nombre': 1,
+                'Receptor.Rfc': 1,
+                'Receptor.Nombre': 1,
+                'Receptor.UsoCFDI': 1,
+                'Fecha': 1,
+                'SubTotal': 1,
+                'Total': 1,
+                'TipoDeComprobante': 1,
+                'Descuento': {
+                    '$ifNull': [
+                        '$Descuento', "0.00"
+                    ]
+                },
+                'Conceptos.Cantidad': 1,
+                'Conceptos.Descripcion': 1,
+                'Conceptos.ValorUnitario': 1,
+                'Conceptos.Importe': 1,
+                'Impuestos.TotalImpuestosTrasladados': 1,
+                'Impuestos.TotalImpuestosRetenidos': 1
+            }
+        }
+    ])
+
     return jsonify({'status': 'success', 'data': json.loads(dumps(cfdi_found))})
 
 
