@@ -69,7 +69,7 @@ def insert_request():
             "_id": result_solicitud["id_solicitud"],
             "info_id": ObjectId(solicitante["_id"]),
             "typerequest": type_request,
-            "daterequest": datetime.datetime.now(),
+            "daterequest": datetime.now(),
             "status": False,
             "datestart": fecha_inicial,
             "dateend": fecha_final
