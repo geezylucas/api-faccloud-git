@@ -385,6 +385,30 @@ def total_cdfis_to_type(id):
     }, }), 200
 
 
+@bp.route('/<id>', methods=['GET'])
+def get_cfdi(id):
+    cfdi_found = db.cfdis.find_one({"_id": ObjectId(id)}, {
+        "Emisor.Rfc": 1,
+        "Emisor.Nombre": 1,
+        "Receptor.Rfc": 1,
+        "Receptor.Nombre": 1,
+        "Receptor.UsoCFDI": 1,
+        "Fecha": 1,
+        "SubTotal": 1,
+        "Total": 1,
+        "TipoDeComprobante": 1,
+        "Descuento": 1,
+        "Conceptos.Cantidad": 1,
+        "Conceptos.Descripcion": 1,
+        "Conceptos.ValorUnitario": 1,
+        "Conceptos.Importe": 1,
+        "Conceptos.Descuento": 1,
+        "Impuestos.TotalImpuestosTrasladados": 1,
+        "Impuestos.TotalImpuestosRetenidos": 1,
+    })
+    return jsonify({'status': 'success', 'data': json.loads(dumps(cfdi_found))})
+
+
 @bp.route('/getrecords/<info_id>', methods=['GET', 'POST'])
 def get_records(info_id):
     body = None
@@ -396,16 +420,16 @@ def get_records(info_id):
     type_comprobante = request.args.get('typecomprobante')
     type_request = request.args.get('typerequest')
 
-    cfdis, result = get_limit_cfdis(page_size=page_size,
-                                    page_num=page_num,
-                                    info_id=info_id,
-                                    type_comprobante=type_comprobante,
-                                    type_request=type_request,
-                                    filters=body
-                                    )
+    cfdis, data_total_monto = get_limit_cfdis(page_size=page_size,
+                                              page_num=page_num,
+                                              info_id=info_id,
+                                              type_comprobante=type_comprobante,
+                                              type_request=type_request,
+                                              filters=body
+                                              )
 
     return jsonify({'status': 'success', 'data': {
-        'totalRecords': json.loads(result),
+        'totalRecords': json.loads(data_total_monto),
         'cfdis': json.loads(cfdis)
     }}), 200
 
@@ -415,9 +439,7 @@ def get_limit_cfdis(page_size, page_num, info_id, type_comprobante, type_request
     and the new last_id.
     """
 
-    applicant = db.satInformations.find_one({
-        '_id': ObjectId(info_id)
-    })
+    applicant = db.satInformations.find_one({'_id': ObjectId(info_id)})
 
     # Calculate number of documents to skip
     skips = page_size * (page_num - 1)
@@ -450,10 +472,10 @@ def get_limit_cfdis(page_size, page_num, info_id, type_comprobante, type_request
         second_project.update({'Rfc': '$Receptor.Rfc'})
 
     if not filters is None:
-        fecha_inicial = datetime.strptime(filters['dateIni'], '%Y-%m-%d') + \
-            timedelta(hours=0, minutes=0, seconds=0)
-        fecha_final = datetime.strptime(filters['dateFin'], '%Y-%m-%d') + \
-            timedelta(hours=23, minutes=59, seconds=59)
+        fecha_inicial = datetime.strptime(
+            filters['dateIni'], '%Y-%m-%d') + timedelta(hours=0, minutes=0, seconds=0)
+        fecha_final = datetime.strptime(
+            filters['dateFin'], '%Y-%m-%d') + timedelta(hours=23, minutes=59, seconds=59)
         match_type_request.update({
             'convertedFecha': {
                 '$gte': fecha_inicial,
@@ -545,25 +567,24 @@ def get_limit_cfdis(page_size, page_num, info_id, type_comprobante, type_request
     ])
 
     list_total_monto = list(result_total_monto)
-    data_total_monto = []
+    data_total_monto = {}
 
     if len(list_total_monto) != 0:
         num = float(list_total_monto[0]["fieldsmatched"]) / float(page_size)
         if num.is_integer():
-            data_total_monto.append({
+            data_total_monto.update({
                 "totalMonto": list_total_monto[0]["totalMonto"],
                 "fieldsmatched": list_total_monto[0]["fieldsmatched"],
                 "pages": int(num)
             })
         else:
-            data_total_monto.append({
+            data_total_monto.update({
                 "totalMonto": list_total_monto[0]["totalMonto"],
                 "fieldsmatched": list_total_monto[0]["fieldsmatched"],
                 "pages": int(num + 1.0)
             })
     else:
-        data_total_monto.append({
-            "_id": 'null',
+        data_total_monto.update({
             "totalMonto": {'$numberDecimal': 0},
             "fieldsmatched": 0,
             "pages": 1
