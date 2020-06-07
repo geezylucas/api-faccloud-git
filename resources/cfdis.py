@@ -204,18 +204,18 @@ def insert_many_cfdis():
 
     request_id = body['idrequest']
     # obtenemos los datos desde el body de la request
-    solicitante = db.satInformations.find_one({
+    applicant = db.satInformations.find_one({
         '_id': ObjectId(body['id'])
     })
 
     # Armamos la data para solicitar datos al sat
-    rfc_solicitante = solicitante["rfc"]
+    rfc_applicant = applicant["rfc"]
 
     request_found = db.requestsCfdis.find_one({
         "_id": request_id
     })
 
-    result = 0
+    result_update_request = 0
     if not request_found["status"]:
         # esta parte de hará cuando este lista la tabla
         path_files = '/Users/geezylucas/Documents/Python/datasensible/'
@@ -236,18 +236,20 @@ def insert_many_cfdis():
         verify_download = VerificaSolicitudDescarga(fiel)
         download = DescargaMasiva(fiel)
 
-        check = verify_download.verificar_descarga(token, rfc_solicitante,
-                                                   request_id)
+        check_download = verify_download.verificar_descarga(token,
+                                                            rfc_applicant,
+                                                            request_id)
 
         numcfdis = 0
-        if check['estado_solicitud'] == '3':
-            packages_result = check['paquetes']
+        if check_download['estado_solicitud'] == '3':
+            packages_result = check_download['paquetes']
             for package in packages_result:
                 binary_file_path = os.getcwd() + '/temp/'
                 zip_path = binary_file_path + package + '.zip'
                 folder_extract = binary_file_path + package
 
-                result_download = download.descargar_paquete(token, rfc_solicitante,
+                result_download = download.descargar_paquete(token,
+                                                             rfc_applicant,
                                                              package)
 
                 data = result_download['paquete_b64']
@@ -265,23 +267,25 @@ def insert_many_cfdis():
 
                 list_files = [f for f in os.listdir(folder_extract)]
 
-                numcfdis = numcfdis + insert_cfdis(list_files, folder_extract,
-                                                   solicitante["_id"], request_id)
+                numcfdis = numcfdis + insert_cfdis(list_files,
+                                                   folder_extract,
+                                                   applicant["_id"],
+                                                   request_id)
                 # END For packages
 
             # Actualizamos la solicitud
-            result = db.requestsCfdis.update_one(
+            result_update_request = db.requestsCfdis.update_one(
                 {"_id": request_id},
                 {"$set": {
                     "status": True,
                     "numcfdis": numcfdis,
                     "datedownload": datetime.now(),
-                    "downloads": check['paquetes']
+                    "downloads": check_download['paquetes']
                 }}
             ).modified_count
 
-        elif check['codigo_estado_solicitud'] == '5004':
-            result = db.requestsCfdis.update_one(
+        elif check_download['codigo_estado_solicitud'] == '5004':
+            result_update_request = db.requestsCfdis.update_one(
                 {"_id": request_id},
                 {"$set": {
                     "status": True,
@@ -290,7 +294,7 @@ def insert_many_cfdis():
                 }}
             ).modified_count
 
-    return jsonify({'status': 'success', 'data': {'modified_count': result}}), 201
+    return jsonify({'status': 'success', 'data': {'modified_count': result_update_request}}), 201
 
 
 @bp.route('/totalcfdistotype/<id>', methods=['GET'])
@@ -308,7 +312,7 @@ def total_cdfis_to_type(id):
             'Fecha': 1,
             '_id': 0
         },
-        sort=list({'Fecha': 1}.items()))
+        sort=list({'Fecha': -1}.items()))
 
     last_emisor_cfdi = db.cfdis.find_one(
         {
@@ -318,7 +322,7 @@ def total_cdfis_to_type(id):
             'Fecha': 1,
             '_id': 0
         },
-        sort=list({'Fecha': 1}.items()))
+        sort=list({'Fecha': -1}.items()))
 
     if type_user != 'g':
         found_request_type = db.requestsCfdis.aggregate([
@@ -349,43 +353,31 @@ def total_cdfis_to_type(id):
 @bp.route('/<id>', methods=['GET'])
 def get_cfdi(id):
    # TODO: Agregar validacion por si no existe
-    cfdi_found = db.cfdis.aggregate([
-        {
-            '$match': {
-                '_id': ObjectId(id)
-            }
-        }, {
-            '$project': {
-                '_id': 0,
-                'Emisor.Rfc': 1,
-                'Emisor.Nombre': 1,
-                'Receptor.Rfc': 1,
-                'Receptor.Nombre': 1,
-                'Receptor.UsoCFDI': 1,
-                'Fecha': 1,
-                'SubTotal': 1,
-                'Total': 1,
-                'TipoDeComprobante': 1,
-                'Descuento': {
-                    '$ifNull': [
-                        '$Descuento', "0.00"
-                    ]
-                },
-                'Conceptos.Cantidad': 1,
-                'Conceptos.Descripcion': 1,
-                'Conceptos.ValorUnitario': 1,
-                'Conceptos.Importe': 1,
-                'Impuestos.TotalImpuestosTrasladados': 1,
-                'Impuestos.TotalImpuestosRetenidos': 1
-            }
-        }
-    ])
+    cfdi_found = db.cfdis.find_one({'_id': ObjectId(id)}, {
+        '_id': 0,
+        'Emisor.Rfc': 1,
+        'Emisor.Nombre': 1,
+        'Receptor.Rfc': 1,
+        'Receptor.Nombre': 1,
+        'Receptor.UsoCFDI': 1,
+        'Fecha': 1,
+        'SubTotal': 1,
+        'Total': 1,
+        'TipoDeComprobante': 1,
+        'Descuento': 1,
+        'Conceptos.Cantidad': 1,
+        'Conceptos.Descripcion': 1,
+        'Conceptos.ValorUnitario': 1,
+        'Conceptos.Importe': 1,
+        'Impuestos.TotalImpuestosTrasladados': 1,
+        'Impuestos.TotalImpuestosRetenidos': 1
+    })
 
     return jsonify({'status': 'success', 'data': json.loads(dumps(cfdi_found))})
 
 
-@bp.route('/getrecords/<info_id>', methods=['GET', 'POST'])
-def get_records(info_id):
+@bp.route('/getcfdis/<info_id>', methods=['GET', 'POST'])
+def get_cfdis(info_id):
     body = None
     if request.method == 'POST':
         body = request.get_json()

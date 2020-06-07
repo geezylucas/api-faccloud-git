@@ -10,25 +10,20 @@ from cfdiclient import Fiel
 bp = Blueprint('requestscfdis', __name__)
 
 
-@bp.route('', methods=['GET'])
-def get_requests():
-    return jsonify({'status': 'success', 'data': json.loads(dumps(db.requestsCfdis.find({})))}), 200
-
-
 @bp.route('', methods=['POST'])
 def insert_request():
     body = request.get_json()
+
+    applicant = db.satInformations.find_one({
+        '_id': ObjectId(body["id"])
+    })
 
     fecha_inicial = datetime.strptime(
         body['datestart'], '%Y-%m-%d') + timedelta(hours=0, minutes=0, seconds=0)
     fecha_final = datetime.strptime(
         body['dateend'], '%Y-%m-%d') + timedelta(hours=23, minutes=59, seconds=59)
 
-    solicitante = db.satInformations.find_one({
-        '_id': ObjectId(body["id"])
-    })
-
-    rfc_solicitante = solicitante["rfc"]
+    rfc_applicant = applicant["rfc"]
 
     type_request = body['typerequest']
 
@@ -48,39 +43,58 @@ def insert_request():
     auth = Autenticacion(fiel)
     token = auth.obtener_token()
     # 2. Solicitud
-    descarga = SolicitaDescarga(fiel)
+    request_download = SolicitaDescarga(fiel)
 
     new_request = {}
-    result_solicitud = dict()
+    result_request = {}
 
     if type_request == 'e':
         # Emitidos
-        result_solicitud = descarga.solicitar_descarga(token, rfc_solicitante,
-                                                       fecha_inicial, fecha_final,
-                                                       rfc_emisor=rfc_solicitante)
+        result_request = request_download.solicitar_descarga(token,
+                                                             rfc_applicant,
+                                                             fecha_inicial,
+                                                             fecha_final,
+                                                             rfc_emisor=rfc_applicant)
     elif type_request == 'r':
         # Recibidos
-        result_solicitud = descarga.solicitar_descarga(token, rfc_solicitante,
-                                                       fecha_inicial, fecha_final,
-                                                       rfc_receptor=rfc_solicitante)
+        result_request = request_download.solicitar_descarga(token,
+                                                             rfc_applicant,
+                                                             fecha_inicial,
+                                                             fecha_final,
+                                                             rfc_receptor=rfc_applicant)
 
-    if result_solicitud["cod_estatus"] == '5000':
-        result = db.requestsCfdis.insert_one({
-            "_id": result_solicitud["id_solicitud"],
-            "info_id": ObjectId(solicitante["_id"]),
+    if result_request["cod_estatus"] == '5000':
+        result_insert_request = db.requestsCfdis.insert_one({
+            "_id": result_request["id_solicitud"],
+            "info_id": ObjectId(rfc_applicant["_id"]),
             "typerequest": type_request,
             "daterequest": datetime.now(),
             "status": False,
             "datestart": fecha_inicial,
             "dateend": fecha_final
         }).inserted_id
-        return jsonify({'status': 'success', 'data': {'_id': result}}), 201
+        return jsonify({'status': 'success', 'data': {'_id': result_insert_request}}), 201
     else:
-        return jsonify({'status': 'error', 'message': result_solicitud["cod_estatus"]}), 500
+        return jsonify({'status': 'error', 'message': result_request["cod_estatus"]}), 500
 
 
-@bp.route('/<info_id>', methods=['GET', 'POST'])
-def get_request(info_id):
+@bp.route('/<id>', methods=['GET'])
+def get_request(id):
+    filter = {
+        '_id': id
+    }
+    project = {
+        'downloads': 0,
+        'info_id': 0
+    }
+
+    requestCfdi = db.requestsCfdis.find_one(filter=filter, projection=project)
+
+    return jsonify({'status': 'success', 'data': json.loads(dumps(requestCfdi))})
+
+
+@bp.route('/getrequests/<info_id>', methods=['GET', 'POST'])
+def get_requests(info_id):
     body = None
     if request.method == 'POST':
         body = request.get_json()
