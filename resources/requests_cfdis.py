@@ -10,22 +10,15 @@ from cfdiclient import Fiel
 bp = Blueprint('requestscfdis', __name__)
 
 
-@bp.route('', methods=['POST'])
-def insert_request():
-    body = request.get_json()
-
-    applicant = db.satInformations.find_one({
-        '_id': ObjectId(body["id"])
-    })
+def request_func(info_id, date_ini, date_fin, type_request):
+    applicant = db.satInformations.find_one({'_id': ObjectId(info_id)})
 
     fecha_inicial = datetime.strptime(
-        body['datestart'], '%Y-%m-%d') + timedelta(hours=0, minutes=0, seconds=0)
+        date_ini, '%Y-%m-%d') + timedelta(hours=0, minutes=0, seconds=0)
     fecha_final = datetime.strptime(
-        body['dateend'], '%Y-%m-%d') + timedelta(hours=23, minutes=59, seconds=59)
+        date_fin, '%Y-%m-%d') + timedelta(hours=23, minutes=59, seconds=59)
 
     rfc_applicant = applicant["rfc"]
-
-    type_request = body['typerequest']
 
     # esta parte de hará cuando este lista la tabla
     path_files = '/Users/geezylucas/Documents/Python/datasensible/'
@@ -45,9 +38,7 @@ def insert_request():
     # 2. Solicitud
     request_download = SolicitaDescarga(fiel)
 
-    new_request = {}
     result_request = {}
-
     if type_request == 'e':
         # Emitidos
         result_request = request_download.solicitar_descarga(token,
@@ -63,19 +54,35 @@ def insert_request():
                                                              fecha_final,
                                                              rfc_receptor=rfc_applicant)
 
-    if result_request["cod_estatus"] == '5000':
-        result_insert_request = db.requestsCfdis.insert_one({
-            "_id": result_request["id_solicitud"],
-            "info_id": ObjectId(rfc_applicant["_id"]),
-            "typerequest": type_request,
-            "daterequest": datetime.now(),
-            "status": False,
-            "datestart": fecha_inicial,
-            "dateend": fecha_final
-        }).inserted_id
-        return jsonify({'status': 'success', 'data': {'_id': result_insert_request}}), 201
+    # TODO: almacenar el error cod_estatus
+    if len(result_request) != 0:
+        if result_request["cod_estatus"] == '5000':
+            return db.requestsCfdis.insert_one({
+                "_id": result_request["id_solicitud"],
+                "info_id": ObjectId(applicant["_id"]),
+                "typerequest": type_request,
+                "daterequest": datetime.now(),
+                "status": False,
+                "datestart": fecha_inicial,
+                "dateend": fecha_final
+            }).inserted_id
+
+    return None
+
+
+@bp.route('', methods=['POST'])
+def insert_request():
+    body = request.get_json()
+
+    result_insert_request = request_func(body['infoId'],
+                                         body['dateIni'],
+                                         body['dateFin'],
+                                         body['typeRequest'])
+
+    if result_insert_request is not None:
+        return jsonify({'status': 'success', 'data': {'_id': result_insert_request, 'message': 'OK'}}), 201
     else:
-        return jsonify({'status': 'error', 'message': result_request["cod_estatus"]}), 500
+        return jsonify({'status': 'error', 'data': {'_id': None, 'message': 'OK'}}), 200
 
 
 @bp.route('/<id>', methods=['GET'])

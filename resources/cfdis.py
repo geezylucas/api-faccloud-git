@@ -205,7 +205,7 @@ def insert_many_cfdis():
     request_id = body['idrequest']
     # obtenemos los datos desde el body de la request
     applicant = db.satInformations.find_one({
-        '_id': ObjectId(body['id'])
+        '_id': ObjectId(body['infoid'])
     })
 
     # Armamos la data para solicitar datos al sat
@@ -297,16 +297,16 @@ def insert_many_cfdis():
     return jsonify({'status': 'success', 'data': {'modified_count': result_update_request}}), 201
 
 
-@bp.route('/totalcfdistotype/<id>', methods=['GET'])
-def total_cdfis_to_type(id):
+@bp.route('/totalcfdistotype/<info_id>', methods=['GET'])
+def total_cdfis_to_type(info_id):
     found_request_type = None
 
     type_user = request.args.get('typeuser')
-    applicant = db.satInformations.find_one({"_id": ObjectId(id)})
+    applicant = db.satInformations.find_one({"_id": ObjectId(info_id)})
 
     last_receptor_cfdi = db.cfdis.find_one(
         {
-            'info_id': ObjectId(id),
+            'info_id': ObjectId(applicant["_id"]),
             'Receptor.Rfc': applicant['rfc']
         }, {
             'Fecha': 1,
@@ -316,7 +316,7 @@ def total_cdfis_to_type(id):
 
     last_emisor_cfdi = db.cfdis.find_one(
         {
-            'info_id': ObjectId(id),
+            'info_id': ObjectId(applicant["_id"]),
             'Emisor.Rfc': applicant['rfc']
         }, {
             'Fecha': 1,
@@ -328,7 +328,7 @@ def total_cdfis_to_type(id):
         found_request_type = db.requestsCfdis.aggregate([
             {
                 '$match': {
-                    'info_id': ObjectId(id)
+                    'info_id': ObjectId(applicant["_id"]),
                 }
             }, {
                 '$group': {
