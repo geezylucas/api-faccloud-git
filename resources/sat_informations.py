@@ -1,29 +1,42 @@
 from flask import Blueprint, request, jsonify
 from database.db import db
 from bson.json_util import dumps, json
+from bson.objectid import ObjectId
 from pymongo.errors import DuplicateKeyError
 
 bp = Blueprint('satinformations', __name__)
 
 
-@bp.route('', methods=['GET', 'POST'])
-def satinformations():
+# TODO: Cambiar info_id tengamos users y el user_id este en la collection satInformations
+@bp.route('/<info_id>', methods=['GET'])
+def get_sat_info(info_id):
     """
-    Function to send all satInformations data or insert new record
+    Endpoint for get info by app movil
     """
-    if request.method == 'POST':
-        body = request.get_json()
+    sat_info = db.satInformations.find_one({'_id': ObjectId(info_id)})
+    return jsonify({'status': 'success', 'data': {'_id': json.loads(dumps(sat_info))}}), 200
 
-        try:
-            info = {"rfc": body["rfc"]}
-            db.satInformations.create_index('rfc', unique=True)
-            result = dumps(db.satInformations.insert_one(info).inserted_id)
 
-            return jsonify({'status': 'success', 'data': {'_id': json.loads(result)}}), 200
-        except KeyError:
-            return jsonify({'status': 'error', 'message': "rfc isn't in body"}), 400
-        except DuplicateKeyError:
-            return jsonify({'status': 'error', 'message': "Duplicate key error collection"}), 400
+@bp.route('', methods=['POST'])
+def insert_sat_info():
+    """
+    Function for insert new record
+    """
+    body = request.get_json()
 
-    else:
-        return jsonify({'status': 'success', 'data': json.loads(dumps(db.satInformations.find({})))}), 200
+    info = {
+        'rfc': body["rfc"],
+        'timerautomatic': False,
+        'timerequest': 0
+    }
+
+    try:
+        db.satInformations.create_index('rfc', unique=True)
+        inserted_id = db.satInformations.insert_one(info).inserted_id
+        return jsonify({
+            'status': 'success',
+            'data': {
+                '_id': json.loads(dumps(inserted_id))
+            }}), 200
+    except DuplicateKeyError:
+        return jsonify({'status': 'error', 'message': "Duplicate key error collection"}), 400
