@@ -70,14 +70,8 @@ def get_limit_cfdis(page_size: int, page_num: int, info_rfc: str, type_comproban
                 }})
 
         if filters['usoCfdi'] != '':
-            # CHECAR: esta parte la tenemos que hacer con un verdadero catalogo
-            switcher = {
-                "Adquisición de mercancias": "G01",
-                "Devoluciones, descuentos o bonificaciones": "G02",
-                "Gastos en general": "G03"
-            }
             filter_type_request.update({
-                'Receptor.UsoCFDI': switcher[filters['usoCfdi']]
+                'Receptor.UsoCFDI': filters['usoCfdi']
             })
 
     # Requires the PyMongo package. POAG760804RP8
@@ -329,8 +323,8 @@ def insert_cfdis_manually_func(request_id: str, info_id: str) -> int or None:
     Function to search package from SAt
     """
     # obtenemos los datos desde el body de la request
-    applicant = db.satInformations.find_one(
-        {'_id': ObjectId(info_id)}, {'rfc': 1})
+    applicant = db.satInformations.find_one(filter={'_id': ObjectId(info_id)},
+                                            projection={'rfc': 1})
     # Armamos la data para solicitar datos al sat
     rfc_applicant = applicant["rfc"]
 
@@ -355,7 +349,8 @@ def insert_cfdis_manually_func(request_id: str, info_id: str) -> int or None:
     check_download = verify_download.verificar_descarga(token=token,
                                                         rfc_solicitante=rfc_applicant,
                                                         id_solicitud=request_id)
-    if check_download['estado_solicitud'] == '3':
+
+    if check_download['estado_solicitud'] == '3' and check_download['cod_estatus'] == '5000':
         numcfdis = 0
         packages_result = check_download['paquetes']
         for package in packages_result:
@@ -367,6 +362,10 @@ def insert_cfdis_manually_func(request_id: str, info_id: str) -> int or None:
             result_download = download.descargar_paquete(token=token,
                                                          rfc_solicitante=rfc_applicant,
                                                          id_paquete=package)
+
+            if not 'paquete_b64' in result_download:
+                return None
+
             data = result_download['paquete_b64']
 
             decoded = base64.b64decode(data)
@@ -401,7 +400,9 @@ def insert_cfdis_manually_func(request_id: str, info_id: str) -> int or None:
             }}
         ).modified_count
 
-    elif check_download['codigo_estado_solicitud'] == '5004':
+    elif check_download['estado_solicitud'] == '2' and check_download['cod_estatus'] == '5000':
+        return 0
+    elif check_download['estado_solicitud'] == '5' and check_download['cod_estatus'] == '5000':
         return db.requestsCfdis.update_one(
             {"_id": request_id},
             {"$set": {
@@ -430,12 +431,12 @@ def total_cdfis_to_type(info_rfc):
     }, }), 200
 
 
-@bp.route('/<id>', methods=['GET'])
-def get_cfdi(id):
+@bp.route('/<cfdi_id>', methods=['GET'])
+def get_cfdi(cfdi_id):
     """
     Endpoint for search only record in cfdis 
     """
-    cfdi_found = db.cfdis.find_one({'_id': ObjectId(id)}, {
+    cfdi_found = db.cfdis.find_one({'_id': ObjectId(cfdi_id)}, {
         '_id': 0,
         'Emisor.Rfc': 1,
         'Emisor.Nombre': 1,
@@ -502,10 +503,11 @@ def insert_cfdis_manually():
     else:
         return jsonify({'status': 'error'}), 500
 
-    # folder_extract = '/Users/geezylucas/Documents/Python/api-general-git/temp/5181BDF8-DB54-49E6-A486-92DC91D1D7EE_01'
-    # result = insert_cfdis(list_files=[f for f in os.listdir(folder_extract)], folder_extract=folder_extract, info_head={
-    #     "request_id": body['requestid'],
-    #     "info_id": body['infoid']
-    # })
 
-    # return jsonify({'result': result}), 200
+# folder_extract = '/Users/geezylucas/Documents/Python/api-general-git/temp/5181BDF8-DB54-49E6-A486-92DC91D1D7EE_01'
+# result = insert_cfdis(list_files=[f for f in os.listdir(folder_extract)], folder_extract=folder_extract, info_head={
+#     "request_id": body['requestid'],
+#     "info_id": body['infoid']
+# })
+
+# return jsonify({'result': result}), 200
