@@ -3,4 +3,4 @@ Flask-Cors>=3.0.8
 pymongo>=3.10.1
 Werkzeug>=1.0.1
 cfdiclient>=1.2.0
-APScheduler>=3.6.3
+Flask-APScheduler>=1.11.0
