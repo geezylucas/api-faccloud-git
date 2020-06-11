@@ -98,7 +98,7 @@ def insert_cfdis_manually():
                                                  'm',
                                                  applicant['rfc'])
 
-    if not result_insert_cfdis is None:
+    if result_insert_cfdis is not None:
         return jsonify({'status': 'success', 'data': {'modified_count': result_insert_cfdis}}), 201
     else:
         return jsonify({'status': 'error'}), 500

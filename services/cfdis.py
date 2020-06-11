@@ -215,7 +215,7 @@ def insert_cfdis(list_files: List[str], folder_extract: str, info_head: dict) ->
 # 0:request_id: str, 1:info_id: ObjectId, 2:request: str, 3:rfc: str
 def insert_many_cfdis_func(*args) -> int or None:
     """
-    Function to search package from SAt
+    Function to search package from SAT
     """
     print('beep cfdi: ' + args[0])
     with app.app_context():
@@ -285,6 +285,7 @@ def insert_many_cfdis_func(*args) -> int or None:
 
                 if args[2] == 'a':
                     app.apscheduler.remove_job(args[0])
+                    print('beep cfdi remove: ' + args[0])
                 # Actualizamos la solicitud
                 return db.requestsCfdis.update_one(
                     {"_id": args[0]},
@@ -298,6 +299,7 @@ def insert_many_cfdis_func(*args) -> int or None:
             elif check_download['estado_solicitud'] == '5' and check_download['cod_estatus'] == '5000':
                 if args[2] == 'a':
                     app.apscheduler.remove_job(args[0])
+                    print('beep cfdi remove: ' + args[0])
                 # Actualizamos la solicitud
                 return db.requestsCfdis.update_one(
                     {"_id": args[0]},
@@ -313,6 +315,7 @@ def insert_many_cfdis_func(*args) -> int or None:
             # TODO: guardar el error
             if args[2] == 'a':
                 app.apscheduler.remove_job(args[0])
+                print('beep cfdi remove: ' + args[0])
             return None
 
 
@@ -339,7 +342,7 @@ def get_limit_cfdis(page_size: int, page_num: int, info_rfc: str, type_comproban
         filter_type_request.update({'Emisor.Rfc': info_rfc})
         project_type_request.update({'Rfc': '$Receptor.Rfc'})
 
-    if not filters is None:
+    if filters is not None:
         fecha_inicial = datetime.strptime(
             filters['dateIni'], '%Y-%m-%d') + timedelta(hours=0, minutes=0, seconds=0)
         fecha_final = datetime.strptime(

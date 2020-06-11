@@ -18,7 +18,7 @@ def get_limit_requests(page_size: int, page_num: int, info_id: str, filters: dic
 
     filter = {'info_id': ObjectId(info_id)}
 
-    if not filters is None:
+    if filters is not None:
         fecha_inicial = datetime.strptime(
             filters['dateIni'], '%Y-%m-%d') + timedelta(hours=0, minutes=0, seconds=0)
         fecha_final = datetime.strptime(
@@ -124,6 +124,20 @@ def insert_request_func(info_id: ObjectId, date_ini: datetime, date_fin: datetim
         return None
 
 
+def create_jobs_download(request_id: str, info_id: ObjectId, rfc_applicant: str):
+    """
+    Function for create job to download
+    """
+    app.apscheduler.add_job(func=insert_many_cfdis_func,
+                            trigger='interval',
+                            args=[request_id,
+                                  info_id,
+                                  'a',
+                                  rfc_applicant],
+                            minutes=3,
+                            id=request_id)
+
+
 def insert_request_automatically(info_id):
     """
     Function for search requests and create downloads automatically
@@ -134,57 +148,52 @@ def insert_request_automatically(info_id):
                                                 projection={'rfc': 1})
 
         # TODO: Historico suscripciones, preguntar la ultima fecha premium y comenzar desde ahí la descarga
-        last_req_receptor = db.requestsCfdis.find_one(filter={'info_id': applicant['_id'], 'typerequest': 'r', 'request': 'a'},
+        last_req_receptor = db.requestsCfdis.find_one(filter={'info_id': applicant['_id'],
+                                                              'typerequest': 'r',
+                                                              'request': 'a'},
                                                       sort=list({
                                                           'daterequest': -1
                                                       }.items()))
-        last_req_emisor = db.requestsCfdis.find_one(filter={'info_id': applicant['_id'], 'typerequest': 'e', 'request': 'a'},
+
+        last_req_emisor = db.requestsCfdis.find_one(filter={'info_id': applicant['_id'],
+                                                            'typerequest': 'e',
+                                                            'request': 'a'},
                                                     sort=list({
                                                         'daterequest': -1
                                                     }.items()))
 
         # TODO: si es nuevo, preguntar al pratrón desde que día pedimos los cfdis DATE_INI DATE_FIN
         date_ini = last_req_receptor['dateend'] + timedelta(
-            seconds=1) if 'dateend' in last_req_receptor else datetime(2019, 12, 2, 0, 0, 0)
+            seconds=1) if last_req_receptor is not None else datetime(2019, 12, 2, 0, 0, 0)
         date_fin = last_req_receptor['dateend'] + timedelta(
-            days=2) if 'dateend' in last_req_receptor else datetime(2019, 12, 4, 23, 59, 59)
+            days=5) if last_req_receptor is not None else datetime(2019, 12, 4, 23, 59, 59)
 
-        insert_req_receptor = insert_request_func(info_id=info_id,
-                                                  date_ini=date_ini,
-                                                  date_fin=date_fin,
-                                                  type_request='r',
-                                                  auto_or_man='a',
-                                                  rfc_applicant=applicant['rfc'])
+        id_req_receptor = insert_request_func(info_id=applicant['_id'],
+                                              date_ini=date_ini,
+                                              date_fin=date_fin,
+                                              type_request='r',
+                                              auto_or_man='a',
+                                              rfc_applicant=applicant['rfc'])
 
         date_ini = last_req_emisor['dateend'] + timedelta(
-            seconds=1) if 'dateend' in last_req_emisor else datetime(2020, 1, 3, 0, 0, 0)
+            seconds=1) if last_req_emisor is not None else datetime(2020, 1, 3, 0, 0, 0)
         date_fin = last_req_emisor['dateend'] + timedelta(
-            days=2) if 'dateend' in last_req_emisor else datetime(2020, 1, 5, 23, 59, 59)
+            days=5) if last_req_emisor is not None else datetime(2020, 1, 5, 23, 59, 59)
 
-        insert_req_emisor = insert_request_func(info_id=info_id,
-                                                date_ini=date_ini,
-                                                date_fin=date_fin,
-                                                type_request='e',
-                                                auto_or_man='a',
-                                                rfc_applicant=applicant['rfc'])
+        id_req_emisor = insert_request_func(info_id=applicant['_id'],
+                                            date_ini=date_ini,
+                                            date_fin=date_fin,
+                                            type_request='e',
+                                            auto_or_man='a',
+                                            rfc_applicant=applicant['rfc'])
 
         # Agregamos los nuevos jobs para solicitar descarga
-        if insert_req_receptor is not None:
-            app.apscheduler.add_job(func=insert_many_cfdis_func,
-                                    trigger='interval',
-                                    args=[insert_req_receptor,
-                                          applicant['_id'],
-                                          'a',
-                                          applicant['rfc']],
-                                    minutes=5,
-                                    id=insert_req_receptor)
+        if id_req_receptor is not None:
+            create_jobs_download(request_id=id_req_receptor,
+                                 info_id=applicant['_id'],
+                                 rfc_applicant=applicant['rfc'])
 
-        if insert_req_emisor is not None:
-            app.apscheduler.add_job(func=insert_many_cfdis_func,
-                                    trigger='interval',
-                                    args=[insert_req_receptor,
-                                          applicant['_id'],
-                                          'a',
-                                          applicant['rfc']],
-                                    minutes=5,
-                                    id=insert_req_emisor)
+        if id_req_emisor is not None:
+            create_jobs_download(request_id=id_req_emisor,
+                                 info_id=applicant['_id'],
+                                 rfc_applicant=applicant['rfc'])
