@@ -350,73 +350,76 @@ def insert_cfdis_manually_func(request_id: str, info_id: str) -> int or None:
                                                         rfc_solicitante=rfc_applicant,
                                                         id_solicitud=request_id)
 
-    if check_download['estado_solicitud'] == '3' and check_download['cod_estatus'] == '5000':
-        numcfdis = 0
-        packages_result = check_download['paquetes']
-        for package in packages_result:
-            binary_file_path = os.getcwd() + '/temp/'
-            zip_path = binary_file_path + package + '.zip'
-            folder_extract = binary_file_path + package
+    if 'estado_solicitud' in check_download.keys():
+        if check_download['estado_solicitud'] == '3' and check_download['cod_estatus'] == '5000':
+            numcfdis = 0
+            packages_result = check_download['paquetes']
+            for package in packages_result:
+                binary_file_path = os.getcwd() + '/temp/'
+                zip_path = binary_file_path + package + '.zip'
+                folder_extract = binary_file_path + package
 
-            download = DescargaMasiva(fiel)
-            result_download = download.descargar_paquete(token=token,
-                                                         rfc_solicitante=rfc_applicant,
-                                                         id_paquete=package)
+                download = DescargaMasiva(fiel)
+                result_download = download.descargar_paquete(token=token,
+                                                             rfc_solicitante=rfc_applicant,
+                                                             id_paquete=package)
 
-            if not 'paquete_b64' in result_download:
-                return None
+                if not 'paquete_b64' in result_download.keys():
+                    return None
 
-            data = result_download['paquete_b64']
+                data = result_download['paquete_b64']
 
-            decoded = base64.b64decode(data)
-            with open(zip_path, 'wb') as f:
-                f.write(decoded)
+                decoded = base64.b64decode(data)
+                with open(zip_path, 'wb') as f:
+                    f.write(decoded)
 
-            zf = zipfile.ZipFile(zip_path, 'r')
-            zf.extractall(folder_extract)
-            zf.close()
-            os.remove(zip_path)
+                zf = zipfile.ZipFile(zip_path, 'r')
+                zf.extractall(folder_extract)
+                zf.close()
+                os.remove(zip_path)
 
-            # Debemos de recorrer file por file de la new folder y almacenar en la bd
-            list_files = [f for f in os.listdir(folder_extract)]
+                # Debemos de recorrer file por file de la new folder y almacenar en la bd
+                list_files = [f for f in os.listdir(folder_extract)]
 
-            numcfdis = numcfdis + insert_cfdis(list_files=list_files,
-                                               folder_extract=folder_extract,
-                                               info_head={
-                                                   "request_id": request_id,
-                                                   "info_id": applicant['_id']
-                                               })
-            shutil.rmtree(folder_extract)
-            # END For packages
+                numcfdis = numcfdis + insert_cfdis(list_files=list_files,
+                                                   folder_extract=folder_extract,
+                                                   info_head={
+                                                       "request_id": request_id,
+                                                       "info_id": applicant['_id']
+                                                   })
+                shutil.rmtree(folder_extract)
+                # END For packages
 
-        # Actualizamos la solicitud
-        return db.requestsCfdis.update_one(
-            {"_id": request_id},
-            {"$set": {
-                "status": True,
-                "numcfdis": numcfdis,
-                "datedownload": datetime.now(),
-                "downloads": check_download['paquetes']
-            }}
-        ).modified_count
-
-    elif check_download['estado_solicitud'] == '2' and check_download['cod_estatus'] == '5000':
-        return 0
-    elif check_download['estado_solicitud'] == '5' and check_download['cod_estatus'] == '5000':
-        return db.requestsCfdis.update_one(
-            {"_id": request_id},
-            {"$set": {
-                "status": True,
-                "numcfdis": 0,
-                "datedownload": datetime.now()
-            }}
-        ).modified_count
+            # Actualizamos la solicitud
+            return db.requestsCfdis.update_one(
+                {"_id": request_id},
+                {"$set": {
+                    "status": True,
+                    "numcfdis": numcfdis,
+                    "datedownload": datetime.now(),
+                    "downloads": check_download['paquetes']
+                }}
+            ).modified_count
+        elif check_download['estado_solicitud'] == '2' and check_download['cod_estatus'] == '5000':
+            return 0
+        elif check_download['estado_solicitud'] == '5' and check_download['cod_estatus'] == '5000':
+            return db.requestsCfdis.update_one(
+                {"_id": request_id},
+                {"$set": {
+                    "status": True,
+                    "numcfdis": 0,
+                    "datedownload": datetime.now()
+                }}
+            ).modified_count
     else:
         return None
 
 
-@bp.route('/totalcfdistotype/<info_rfc>', methods=['GET'])
-def total_cdfis_to_type(info_rfc):
+@bp.route('/lastcfditotype/<info_rfc>', methods=['GET'])
+def last_cdfi_to_type(info_rfc):
+    """
+    Endpoint for search last cfdi emisor and receptor by RFC
+    """
     last_receptor_cfdi = db.cfdis.find_one(filter={'Receptor.Rfc': info_rfc},
                                            projection={'Fecha': 1, '_id': 0},
                                            sort=list({'Fecha': -1}.items()))
@@ -455,7 +458,6 @@ def get_cfdi(cfdi_id):
         'Impuestos.TotalImpuestosTrasladados': 1,
         'Impuestos.TotalImpuestosRetenidos': 1
     })
-
     return jsonify({'status': 'success', 'data': json.loads(dumps(cfdi_found))})
 
 
@@ -503,11 +505,10 @@ def insert_cfdis_manually():
     else:
         return jsonify({'status': 'error'}), 500
 
+    # folder_extract = '/Users/geezylucas/Documents/Python/api-general-git/temp/5181BDF8-DB54-49E6-A486-92DC91D1D7EE_01'
+    # result = insert_cfdis(list_files=[f for f in os.listdir(folder_extract)], folder_extract=folder_extract, info_head={
+    #     "request_id": body['requestid'],
+    #     "info_id": body['infoid']
+    # })
 
-# folder_extract = '/Users/geezylucas/Documents/Python/api-general-git/temp/5181BDF8-DB54-49E6-A486-92DC91D1D7EE_01'
-# result = insert_cfdis(list_files=[f for f in os.listdir(folder_extract)], folder_extract=folder_extract, info_head={
-#     "request_id": body['requestid'],
-#     "info_id": body['infoid']
-# })
-
-# return jsonify({'result': result}), 200
+    # return jsonify({'result': result}), 200

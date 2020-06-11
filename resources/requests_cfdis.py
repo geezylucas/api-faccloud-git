@@ -68,10 +68,10 @@ def get_limit_requests(page_size: int, page_num: int, info_id: str, filters: dic
 
 
 def insert_request_func(info_id: str, date_ini: str, date_fin: datetime, type_request: datetime, auto_or_man: str) -> str or None:
+    """
+    Function for search request and insert
+    """
     applicant = db.satInformations.find_one({'_id': ObjectId(info_id)})
-
-    if applicant is None:
-        return None
 
     rfc_applicant = applicant["rfc"]
 
@@ -150,7 +150,6 @@ def get_requests(info_id):
                                                          info_id=info_id,
                                                          filters=body
                                                          )
-
     return jsonify({'status': 'success', 'data': {
         'dataPagination': json.loads(data_pagination),
         'requests': json.loads(requests_cfdis)
@@ -164,7 +163,6 @@ def get_request(request_id):
     """
     request_cfdi = db.requestsCfdis.find_one(filter={'_id': request_id},
                                              projection={'downloads': 0, 'info_id': 0})
-
     return jsonify({'status': 'success', 'data': json.loads(dumps(request_cfdi))})
 
 

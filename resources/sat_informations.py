@@ -14,7 +14,7 @@ def get_sat_info(info_id):
     Endpoint for get info by app movil
     """
     sat_info = db.satInformations.find_one({'_id': ObjectId(info_id)})
-    return jsonify({'status': 'success', 'data': {'_id': json.loads(dumps(sat_info))}}), 200
+    return jsonify({'status': 'success', 'data': json.loads(dumps(sat_info))}), 200
 
 
 @bp.route('', methods=['POST'])
