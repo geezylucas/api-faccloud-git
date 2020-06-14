@@ -29,12 +29,16 @@ def get_limit_requests(page_size: int, page_num: int, info_id: str, filters: dic
                 '$lte': fecha_final
             }})
 
+        if filters['status'] != '':
+            filter.update({'status': filters['status']})
+
     requests_cfdi = list(db.requestsCfdis.find(filter=filter,
                                                projection={
                                                    'typerequest': 1,
                                                    'status': 1,
                                                    'numcfdis': 1,
-                                                   'daterequest': 1
+                                                   'daterequest': 1,
+                                                   'request': 1,
                                                },
                                                sort=list({
                                                    'daterequest': -1

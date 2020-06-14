@@ -372,13 +372,21 @@ def get_limit_cfdis(page_size: int, page_num: int, info_rfc: str, type_comproban
     # Requires the PyMongo package. POAG760804RP8
     # https://api.mongodb.com/python/current
 
-    list_cfdis = list(db.cfdis.find(filter=filter_type_request,
-                                    projection=project_type_request,
-                                    sort=list({
-                                        'Fecha': -1
-                                    }.items()),
-                                    skip=skips,
-                                    limit=page_size))
+    list_cfdis = list(db.cfdis.aggregate([
+        {
+            '$match': filter_type_request
+        }, {
+            '$project': project_type_request
+        }, {
+            '$sort': {
+                'Fecha': -1
+            }
+        }, {
+            '$skip': skips
+        }, {
+            '$limit': page_size
+        }
+    ]))
 
     pagination_monto = list(db.cfdis.aggregate([
         {

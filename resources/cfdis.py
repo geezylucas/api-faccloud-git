@@ -90,10 +90,10 @@ def insert_cfdis_manually():
     """
     body = request.get_json()
 
-    applicant = db.satInformations.find_one(filter={'_id': ObjectId(body['infoid'])},
+    applicant = db.satInformations.find_one(filter={'_id': ObjectId(body['infoId'])},
                                             projection={'rfc': 1})
 
-    result_insert_cfdis = insert_many_cfdis_func(body['requestid'],
+    result_insert_cfdis = insert_many_cfdis_func(body['requestId'],
                                                  applicant['_id'],
                                                  'm',
                                                  applicant['rfc'])
