@@ -4,7 +4,7 @@ from datetime import datetime, timedelta
 from flask import Blueprint, request, jsonify
 from bson.json_util import dumps, json
 from bson.objectid import ObjectId
-from services.requests_cfdis import get_limit_requests, insert_request_func, insert_request_automatically, create_jobs_download
+from services.requests_cfdis import get_limit_requests, insert_request_func
 
 
 bp = Blueprint('requestscfdis', __name__)
@@ -70,57 +70,3 @@ def insert_request_manually():
         return jsonify({'status': 'success', 'data': {'_id': result_insert_request, 'message': 'OK'}}), 201
     else:
         return jsonify({'status': 'error', 'data': {'_id': None, 'message': 'Error'}}), 200
-
-
-@bp.route('/requestsauto/<info_id>', methods=['PATCH'])
-def update_request_automatically(info_id):
-    """
-    Endpoint for activate downloads automatically
-    """
-    body = request.get_json()
-
-    db.satInformations.update_one({'_id': ObjectId(info_id)},
-                                  {'$set': {
-                                      'settingsrfc.timerautomatic': body['timerautomatic']
-                                  }})
-
-    if body['timerautomatic']:
-        pending_req_receptor = list(db.requestsCfdis.find(filter={'info_id': ObjectId(info_id),
-                                                                  'typerequest': 'r',
-                                                                  'request': 'a',
-                                                                  'status': False},
-                                                          sort=list({
-                                                              'daterequest': -1
-                                                          }.items())))
-
-        pending_req_emisor = list(db.requestsCfdis.find(filter={'info_id': ObjectId(info_id),
-                                                                'typerequest': 'e',
-                                                                'request': 'a',
-                                                                'status': False},
-                                                        sort=list({
-                                                            'daterequest': -1
-                                                        }.items())))
-
-        if len(pending_req_receptor) != 0 or len(pending_req_emisor) != 0:
-            applicant = db.satInformations.find_one(filter={'_id': ObjectId(info_id)},
-                                                    projection={'rfc': 1})
-            for pending in pending_req_receptor:
-                create_jobs_download(request_id=pending['_id'],
-                                     info_id=applicant['_id'],
-                                     rfc_applicant=applicant['rfc'])
-
-            for pending in pending_req_emisor:
-                create_jobs_download(request_id=pending['_id'],
-                                     info_id=applicant['_id'],
-                                     rfc_applicant=applicant['rfc'])
-
-        # Cambiar a dias
-        app.apscheduler.add_job(func=insert_request_automatically,
-                                trigger='interval',
-                                args=[info_id],
-                                minutes=5,
-                                id=info_id)
-    else:
-        app.apscheduler.remove_job(info_id)
-
-    return jsonify({'status': 'success'}), 200
