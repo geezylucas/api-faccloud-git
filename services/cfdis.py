@@ -246,13 +246,9 @@ def insert_many_cfdis_func(*args) -> int or None:
 
         if 'estado_solicitud' in check_download.keys():
             if check_download['estado_solicitud'] == '3' and check_download['cod_estatus'] == '5000':
-                numcfdis = 0
+                num_cfdis = 0
                 packages_result = check_download['paquetes']
                 for package in packages_result:
-                    binary_file_path = os.getcwd() + '/temp/'
-                    zip_path = binary_file_path + package + '.zip'
-                    folder_extract = binary_file_path + package
-
                     download = DescargaMasiva(fiel)
                     result_download = download.descargar_paquete(token=token,
                                                                  rfc_solicitante=rfc_applicant,
@@ -263,24 +259,10 @@ def insert_many_cfdis_func(*args) -> int or None:
 
                     data = result_download['paquete_b64']
 
-                    decoded = base64.b64decode(data)
-                    with open(zip_path, 'wb') as f:
-                        f.write(decoded)
-
-                    zf = zipfile.ZipFile(zip_path, 'r')
-                    zf.extractall(folder_extract)
-                    zf.close()
-                    os.remove(zip_path)
-
-                    # Debemos de recorrer file por file de la new folder y almacenar en la bd
-                    list_files = [f for f in os.listdir(folder_extract)]
-
-                    numcfdis = numcfdis + insert_cfdis(list_files=list_files,
-                                                       folder_extract=folder_extract,
-                                                       info_head={"request_id": args[0],
-                                                                  "info_id": args[1]
-                                                                  })
-                    shutil.rmtree(folder_extract)
+                    num_cfdis = num_cfdis + decode_data64_and_insert(data=data,
+                                                                     name=package,
+                                                                     info_head={"request_id": args[0],
+                                                                                "info_id": args[1]})
                     # END For packages
 
                 if args[2] == 'a':
@@ -291,7 +273,7 @@ def insert_many_cfdis_func(*args) -> int or None:
                     {"_id": args[0]},
                     {"$set": {
                         "status": True,
-                        "numcfdis": numcfdis,
+                        "numcfdis": num_cfdis,
                         "datedownload": datetime.now(),
                         "downloads": check_download['paquetes']
                     }}
@@ -427,3 +409,32 @@ def get_limit_cfdis(page_size: int, page_num: int, info_rfc: str, type_comproban
 
     # Return data and pagination
     return dumps(list_cfdis), dumps(data_pagination_monto)
+
+
+def decode_data64_and_insert(data: str, name: str, info_head: dict) -> int:
+    """
+    Function for decode data from base64 and it insert those CFDIs
+    """
+    binary_file_path = os.getcwd() + '/temp/'
+    zip_path = binary_file_path + name + '.zip'
+    folder_extract = binary_file_path + name
+
+    decoded = base64.b64decode(data)
+    with open(zip_path, 'wb') as f:
+        f.write(decoded)
+
+    zf = zipfile.ZipFile(zip_path, 'r')
+    zf.extractall(folder_extract)
+    zf.close()
+    os.remove(zip_path)
+
+    # Debemos de recorrer file por file de la new folder y almacenar en la bd
+    list_files = [f for f in os.listdir(folder_extract)]
+
+    result_num_cfdis = insert_cfdis(list_files=list_files,
+                                    folder_extract=folder_extract,
+                                    info_head=info_head)
+
+    shutil.rmtree(folder_extract)
+
+    return result_num_cfdis

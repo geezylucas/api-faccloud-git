@@ -1,8 +1,11 @@
+import os
+import base64
+import zipfile
 from database.db import db
 from flask import Blueprint, request, jsonify
 from bson.json_util import dumps, json
 from bson.objectid import ObjectId
-from services.cfdis import get_limit_cfdis, insert_many_cfdis_func
+from services.cfdis import get_limit_cfdis, insert_many_cfdis_func, decode_data64_and_insert
 
 
 bp = Blueprint('cfdis', __name__)
@@ -99,7 +102,7 @@ def insert_cfdis_manually():
                                                  applicant['rfc'])
 
     if result_insert_cfdis is not None:
-        return jsonify({'status': 'success', 'data': {'modified_count': result_insert_cfdis}}), 201
+        return jsonify({'status': 'success', 'data': {'modifiedCount': result_insert_cfdis}}), 201
     else:
         return jsonify({'status': 'error'}), 500
 
@@ -110,3 +113,20 @@ def insert_cfdis_manually():
     # })
 
     # return jsonify({'result': result}), 200
+
+
+@bp.route('/insertcfdismanually/<info_id>', methods=['POST'])
+def insert_cfdis_by_portal(info_id):
+    body = request.get_json()
+
+    files_base64 = list(body['files'])
+
+    num_cfdis = 0
+    for file in files_base64:
+        starter = file['data64'].find(',')
+        zip_data = file['data64'][starter+1:]
+        num_cfdis = num_cfdis + decode_data64_and_insert(data=zip_data,
+                                                         name=file['name'],
+                                                         info_head={"info_id": ObjectId(info_id)})
+
+    return jsonify({'status': 'OK', 'data': {'cfdisInsertados': num_cfdis}}), 200
