@@ -4,6 +4,7 @@ import os
 import base64
 import zipfile
 import shutil
+import uuid
 from datetime import datetime, timedelta
 from typing import List, Tuple
 from bson.decimal128 import Decimal128
@@ -260,7 +261,6 @@ def insert_many_cfdis_func(*args) -> int or None:
                     data = result_download['paquete_b64']
 
                     num_cfdis = num_cfdis + decode_data64_and_insert(data=data,
-                                                                     name=package,
                                                                      info_head={"request_id": args[0],
                                                                                 "info_id": args[1]})
                     # END For packages
@@ -299,6 +299,36 @@ def insert_many_cfdis_func(*args) -> int or None:
                 app.apscheduler.remove_job(args[0])
                 print('beep cfdi remove: ' + args[0])
             return None
+
+
+def decode_data64_and_insert(data: str, info_head: dict) -> int:
+    """
+    Function for decode data from base64 and it insert those CFDIs
+    """
+    name_rand = str(uuid.uuid4())
+    path_temp = os.getcwd() + '/temp/'
+    zip_path = path_temp + name_rand + '.zip'
+    folder_extract = path_temp + name_rand
+
+    decoded = base64.b64decode(data)
+    with open(zip_path, 'wb') as f:
+        f.write(decoded)
+
+    zf = zipfile.ZipFile(zip_path, 'r')
+    zf.extractall(folder_extract)
+    zf.close()
+    os.remove(zip_path)
+
+    # Debemos de recorrer file por file de la new folder y almacenar en la bd
+    list_files = [f for f in os.listdir(folder_extract)]
+
+    result_num_cfdis = insert_cfdis(list_files=list_files,
+                                    folder_extract=folder_extract,
+                                    info_head=info_head)
+
+    shutil.rmtree(folder_extract)
+
+    return result_num_cfdis
 
 
 def get_limit_cfdis(page_size: int, page_num: int, info_rfc: str, type_comprobante: str, type_request: str, filters: dict):
@@ -409,32 +439,3 @@ def get_limit_cfdis(page_size: int, page_num: int, info_rfc: str, type_comproban
 
     # Return data and pagination
     return dumps(list_cfdis), dumps(data_pagination_monto)
-
-
-def decode_data64_and_insert(data: str, name: str, info_head: dict) -> int:
-    """
-    Function for decode data from base64 and it insert those CFDIs
-    """
-    binary_file_path = os.getcwd() + '/temp/'
-    zip_path = binary_file_path + name + '.zip'
-    folder_extract = binary_file_path + name
-
-    decoded = base64.b64decode(data)
-    with open(zip_path, 'wb') as f:
-        f.write(decoded)
-
-    zf = zipfile.ZipFile(zip_path, 'r')
-    zf.extractall(folder_extract)
-    zf.close()
-    os.remove(zip_path)
-
-    # Debemos de recorrer file por file de la new folder y almacenar en la bd
-    list_files = [f for f in os.listdir(folder_extract)]
-
-    result_num_cfdis = insert_cfdis(list_files=list_files,
-                                    folder_extract=folder_extract,
-                                    info_head=info_head)
-
-    shutil.rmtree(folder_extract)
-
-    return result_num_cfdis

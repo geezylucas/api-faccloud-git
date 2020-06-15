@@ -56,17 +56,9 @@ def update_settings(info_id):
     applicant = db.satInformations.find_one(filter={'_id': ObjectId(info_id)},
                                             projection={'rfc': 1, 'settingsrfc.timerequest': 1})
 
-    # BEGIN uso cfdis
-    projection = {'_id': 0}
-
-    projection.update({'usocfdi.' + uso: 1 for uso in list(body['usocfdis'])})
-
-    uso_cfdis = db.catalogs.find_one(filter={'type': 'cfdis'},
-                                     projection=projection)
-    # END uso cfdis
     # BEGIN downdload automatically
     if body['timerautomatic']:
-        pending_req_receptor = list(db.requestsCfdis.find(filter={'info_id': ObjectId(info_id),
+        pending_req_receptor = list(db.requestsCfdis.find(filter={'info_id': applicant['_id'],
                                                                   'typerequest': 'r',
                                                                   'request': 'a',
                                                                   'status': False},
@@ -74,7 +66,7 @@ def update_settings(info_id):
                                                               'daterequest': -1
                                                           }.items())))
 
-        pending_req_emisor = list(db.requestsCfdis.find(filter={'info_id': ObjectId(info_id),
+        pending_req_emisor = list(db.requestsCfdis.find(filter={'info_id': applicant['_id'],
                                                                 'typerequest': 'e',
                                                                 'request': 'a',
                                                                 'status': False},
@@ -109,10 +101,20 @@ def update_settings(info_id):
                                     args=[info_id],
                                     minutes=int(body['timerequest']),
                                     id=info_id)
-
     else:
         if app.apscheduler.get_job(info_id) != None:
             app.apscheduler.remove_job(info_id)
+
+    # END downdload automatically
+    # BEGIN uso cfdis
+    projec_usos_cfdi = {'_id': 0}
+
+    projec_usos_cfdi.update(
+        {'usocfdi.' + uso: 1 for uso in list(body['usocfdis'])})
+
+    uso_cfdis = db.catalogs.find_one(filter={'type': 'cfdis'},
+                                     projection=projec_usos_cfdi)
+    # END uso cfdis
 
     update_uso_cfdis = db.satInformations.update_one({'_id': ObjectId(info_id)},
                                                      {'$set': {

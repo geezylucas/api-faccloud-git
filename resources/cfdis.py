@@ -119,14 +119,11 @@ def insert_cfdis_manually():
 def insert_cfdis_by_portal(info_id):
     body = request.get_json()
 
-    files_base64 = list(body['files'])
-
     num_cfdis = 0
-    for file in files_base64:
-        starter = file['data64'].find(',')
-        zip_data = file['data64'][starter+1:]
+    for file in list(body['files']):
+        starter = file.find(',')
+        zip_data = file[starter+1:]
         num_cfdis = num_cfdis + decode_data64_and_insert(data=zip_data,
-                                                         name=file['name'],
                                                          info_head={"info_id": ObjectId(info_id)})
 
     return jsonify({'status': 'OK', 'data': {'cfdisInsertados': num_cfdis}}), 200
