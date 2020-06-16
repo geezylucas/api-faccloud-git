@@ -124,7 +124,5 @@ def update_settings(info_id):
                                                      }}
                                                      ).modified_count
 
-    if update_uso_cfdis != 0:
-        return jsonify({'status': 'success'}), 204
-    else:
-        return jsonify({'status': 'error'}), 500
+    # TODO: agregar un 500 por si pasa un problema
+    return jsonify({'status': 'success'}), 204
