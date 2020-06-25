@@ -4,3 +4,4 @@ pymongo>=3.10.1
 Werkzeug>=1.0.1
 cfdiclient>=1.2.0
 Flask-APScheduler>=1.11.0
+bcrypt>=3.1.7

@@ -1,5 +1,3 @@
-from run import app
-from database.db import db
 import os
 import base64
 import zipfile
@@ -10,13 +8,12 @@ from typing import List, Tuple
 from bson.decimal128 import Decimal128
 import xml.etree.ElementTree as ET
 from xml.etree.ElementTree import Element
-from bson.json_util import dumps, json
-from bson.objectid import ObjectId
-from cfdiclient import Autenticacion
-from cfdiclient import VerificaSolicitudDescarga
-from cfdiclient import DescargaMasiva
-from cfdiclient import Fiel
+from bson.json_util import dumps
+from werkzeug.local import LocalProxy
+from api.db import get_db
 
+# Use LocalProxy to read the global db instance with just `db`
+db = LocalProxy(get_db)
 
 ns = {
     'cfdi': 'http://www.sat.gob.mx/cfd/3',
@@ -213,94 +210,6 @@ def insert_cfdis(list_files: List[str], folder_extract: str, info_head: dict) ->
     return len(db.cfdis.insert_many(cfdis_to_insert).inserted_ids) if cfdis_to_insert else 0
 
 
-# 0:request_id: str, 1:info_id: ObjectId, 2:request: str, 3:rfc: str
-def insert_many_cfdis_func(*args) -> int or None:
-    """
-    Function to search package from SAT
-    """
-    print('beep cfdi: ' + args[0])
-    with app.app_context():
-        # Armamos la data para solicitar datos al sat
-        rfc_applicant = args[3]
-
-        # esta parte de hará cuando este lista la tabla
-        path_files = '/Users/geezylucas/Documents/Python/datasensible/'
-        cer = path_files + '00001000000404800833.cer'
-        key = path_files + 'Claveprivada_FIEL_PTI121203SZ0_20170111_190425.key'
-        passkeyprivate = 'BEAUGENCY1964'
-
-        cer_der = open(cer, 'rb').read()
-        key_der = open(key, 'rb').read()
-
-        fiel = Fiel(cer_der, key_der, passkeyprivate)
-        # FIN example
-
-        # 1. Token
-        auth = Autenticacion(fiel)
-        token = auth.obtener_token()
-        # 2. Solicitud
-        verify_download = VerificaSolicitudDescarga(fiel)
-
-        check_download = verify_download.verificar_descarga(token=token,
-                                                            rfc_solicitante=rfc_applicant,
-                                                            id_solicitud=args[0])
-
-        if 'estado_solicitud' in check_download.keys():
-            if check_download['estado_solicitud'] == '3' and check_download['cod_estatus'] == '5000':
-                num_cfdis = 0
-                packages_result = check_download['paquetes']
-                for package in packages_result:
-                    download = DescargaMasiva(fiel)
-                    result_download = download.descargar_paquete(token=token,
-                                                                 rfc_solicitante=rfc_applicant,
-                                                                 id_paquete=package)
-
-                    if not 'paquete_b64' in result_download.keys():
-                        return None
-
-                    data = result_download['paquete_b64']
-
-                    num_cfdis = num_cfdis + decode_data64_and_insert(data=data,
-                                                                     info_head={"request_id": args[0],
-                                                                                "info_id": args[1]})
-                    # END For packages
-
-                if args[2] == 'a':
-                    app.apscheduler.remove_job(args[0])
-                    print('beep cfdi remove: ' + args[0])
-                # Actualizamos la solicitud
-                return db.requestsCfdis.update_one(
-                    {"_id": args[0]},
-                    {"$set": {
-                        "status": True,
-                        "numcfdis": num_cfdis,
-                        "datedownload": datetime.now(),
-                        "downloads": check_download['paquetes']
-                    }}
-                ).modified_count
-            elif check_download['estado_solicitud'] == '5' and check_download['cod_estatus'] == '5000':
-                if args[2] == 'a':
-                    app.apscheduler.remove_job(args[0])
-                    print('beep cfdi remove: ' + args[0])
-                # Actualizamos la solicitud
-                return db.requestsCfdis.update_one(
-                    {"_id": args[0]},
-                    {"$set": {
-                        "status": True,
-                        "numcfdis": 0,
-                        "datedownload": datetime.now()
-                    }}
-                ).modified_count
-            elif check_download['estado_solicitud'] == '2' and check_download['cod_estatus'] == '5000':
-                return 0
-        else:
-            # TODO: guardar el error
-            if args[2] == 'a':
-                app.apscheduler.remove_job(args[0])
-                print('beep cfdi remove: ' + args[0])
-            return None
-
-
 def decode_data64_and_insert(data: str, info_head: dict) -> int:
     """
     Function for decode data from base64 and it insert those CFDIs
@@ -331,7 +240,7 @@ def decode_data64_and_insert(data: str, info_head: dict) -> int:
     return result_num_cfdis
 
 
-def get_limit_cfdis(page_size: int, page_num: int, info_rfc: str, type_comprobante: str, type_request: str, filters: dict):
+def pagination_cfdis(page_size: int, page_num: int, info_rfc: str, type_comprobante: str, type_request: str, filters: dict):
     """
     Function to search records in cfdis
     """

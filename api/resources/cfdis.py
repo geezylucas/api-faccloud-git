@@ -1,13 +1,14 @@
 import os
 import base64
 import zipfile
-from database.db import db
 from flask import Blueprint, request, jsonify
 from bson.json_util import dumps, json
 from bson.objectid import ObjectId
-from services.cfdis import get_limit_cfdis, insert_many_cfdis_func, decode_data64_and_insert
+from werkzeug.local import LocalProxy
+from api.db import get_db
 
-
+# Use LocalProxy to read the global db instance with just `db`
+db = LocalProxy(get_db)
 bp = Blueprint('cfdis', __name__)
 
 
@@ -63,6 +64,7 @@ def get_cfdis(info_rfc):
     Endpoint for search with filters (dateIni, dateFin, rfc, usoCfdi) records in cfdis
     and return data and pagination
     """
+    from api.services.cfdis import pagination_cfdis
     body = None
     if request.method == 'POST':
         body = request.get_json()
@@ -72,13 +74,13 @@ def get_cfdis(info_rfc):
     type_comprobante = request.args.get('typecomprobante')
     type_request = request.args.get('typerequest')
 
-    cfdis, data_total_monto = get_limit_cfdis(page_size=page_size,
-                                              page_num=page_num,
-                                              info_rfc=info_rfc,
-                                              type_comprobante=type_comprobante,
-                                              type_request=type_request,
-                                              filters=body
-                                              )
+    cfdis, data_total_monto = pagination_cfdis(page_size=page_size,
+                                               page_num=page_num,
+                                               info_rfc=info_rfc,
+                                               type_comprobante=type_comprobante,
+                                               type_request=type_request,
+                                               filters=body
+                                               )
 
     return jsonify({'status': 'success', 'data': {
         'dataPagination': json.loads(data_total_monto),
@@ -91,6 +93,7 @@ def insert_cfdis_manually():
     """
     Endpoint to insert cfdis manually
     """
+    from api.services.requests_cfdis import insert_many_cfdis_func
     body = request.get_json()
 
     applicant = db.satInformations.find_one(filter={'_id': ObjectId(body['infoId'])},
@@ -117,6 +120,10 @@ def insert_cfdis_manually():
 
 @bp.route('/insertcfdismanually/<info_id>', methods=['POST'])
 def insert_cfdis_by_portal(info_id):
+    """
+    Endpoint to insert cfdis by web
+    """
+    from api.services.cfdis import decode_data64_and_insert
     body = request.get_json()
 
     num_cfdis = 0

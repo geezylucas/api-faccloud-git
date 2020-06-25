@@ -1,6 +1,5 @@
 from flask import current_app, g
 from pymongo import MongoClient
-from werkzeug.local import LocalProxy
 
 
 def get_db():
@@ -14,7 +13,3 @@ def get_db():
     if db is None:
         db = g._database = MongoClient(FACCLOUD_DB_URI)[FACCLOUD_DB_NAME]
     return db
-
-
-# Use LocalProxy to read the global db instance with just `db`
-db = LocalProxy(get_db)

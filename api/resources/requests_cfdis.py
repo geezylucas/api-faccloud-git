@@ -1,12 +1,12 @@
-from run import app
-from database.db import db
-from datetime import datetime, timedelta
 from flask import Blueprint, request, jsonify
+from datetime import datetime, timedelta
 from bson.json_util import dumps, json
 from bson.objectid import ObjectId
-from services.requests_cfdis import get_limit_requests, insert_request_func
+from werkzeug.local import LocalProxy
+from api.db import get_db
 
-
+# Use LocalProxy to read the global db instance with just `db`
+db = LocalProxy(get_db)
 bp = Blueprint('requestscfdis', __name__)
 
 
@@ -16,6 +16,7 @@ def get_requests(info_id):
     Endpoint for search with filters (dateIni, dateFin) records in requests Cfdis 
     and return data and pagination
     """
+    from api.services.requests_cfdis import pagination_requests
     body = None
     if request.method == 'POST':
         body = request.get_json()
@@ -23,11 +24,11 @@ def get_requests(info_id):
     page_size = int(request.args.get('pagesize'))
     page_num = int(request.args.get('pagenum'))
 
-    requests_cfdis, data_pagination = get_limit_requests(page_size=page_size,
-                                                         page_num=page_num,
-                                                         info_id=info_id,
-                                                         filters=body
-                                                         )
+    requests_cfdis, data_pagination = pagination_requests(page_size=page_size,
+                                                          page_num=page_num,
+                                                          info_id=info_id,
+                                                          filters=body
+                                                          )
     return jsonify({'status': 'success', 'data': {
         'dataPagination': json.loads(data_pagination),
         'requests': json.loads(requests_cfdis)
@@ -49,6 +50,7 @@ def insert_request_manually():
     """
     Endpoint for request and insert in requests Cfdis 
     """
+    from api.services.requests_cfdis import insert_request_func
     body = request.get_json()
 
     date_ini = datetime.strptime(

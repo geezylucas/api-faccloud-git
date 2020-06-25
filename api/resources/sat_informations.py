@@ -1,50 +1,25 @@
+from api import create_app
 from flask import Blueprint, request, jsonify
-from database.db import db
 from bson.json_util import dumps, json
 from bson.objectid import ObjectId
 from pymongo.errors import DuplicateKeyError
-from run import app
-from services.requests_cfdis import create_jobs_download, insert_request_automatically
+from werkzeug.local import LocalProxy
+from api.db import get_db
 
+# Use LocalProxy to read the global db instance with just `db`
+db = LocalProxy(get_db)
 bp = Blueprint('satinformations', __name__)
+app = create_app()
 
 
-# TODO: Cambiar info_id tengamos users y el user_id este en la collection satInformations
 @bp.route('/<info_id>', methods=['GET'])
 def get_sat_info(info_id):
     """
     Endpoint for get info by app movil
     """
+    # TODO: Cambiar info_id tengamos users y el user_id este en la collection satInformations
     sat_info = db.satInformations.find_one({'_id': ObjectId(info_id)})
     return jsonify({'status': 'success', 'data': json.loads(dumps(sat_info))}), 200
-
-
-@bp.route('', methods=['POST'])
-def insert_sat_info():
-    """
-    Function for insert new record
-    """
-    body = request.get_json()
-
-    info = {
-        'rfc': body["rfc"],
-        'settingsrfc': {
-            'timerautomatic': False,
-            'timerequest': 0,
-            'usocfdis': {}
-        }
-    }
-
-    try:
-        db.satInformations.create_index('rfc', unique=True)
-        inserted_id = db.satInformations.insert_one(info).inserted_id
-        return jsonify({
-            'status': 'success',
-            'data': {
-                '_id': json.loads(dumps(inserted_id))
-            }}), 200
-    except DuplicateKeyError:
-        return jsonify({'status': 'error', 'message': "Duplicate key error collection"}), 400
 
 
 @bp.route('/updatesettings/<info_id>', methods=['PATCH'])
@@ -52,6 +27,7 @@ def update_settings(info_id):
     """
     Endpoint to update settingsrfc.usocfdis by id
     """
+    from api.services.requests_cfdis import insert_request_automatically, create_jobs_download
     body = request.get_json()
     applicant = db.satInformations.find_one(filter={'_id': ObjectId(info_id)},
                                             projection={'rfc': 1, 'settingsrfc.timerequest': 1})
@@ -115,7 +91,6 @@ def update_settings(info_id):
     uso_cfdis = db.catalogs.find_one(filter={'type': 'cfdis'},
                                      projection=projec_usos_cfdi)
     # END uso cfdis
-
     update_uso_cfdis = db.satInformations.update_one({'_id': ObjectId(info_id)},
                                                      {'$set': {
                                                          'settingsrfc.usocfdis': uso_cfdis['usocfdi'],
