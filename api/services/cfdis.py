@@ -42,13 +42,13 @@ def impuestos_reten_trasl(nodo: Element) -> Tuple[list, list]:
 
     # Traslados
     n_traslado = nodo.find("cfdi:Traslados", ns)
-    if n_traslado != None:
+    if not n_traslado is None:
         for child in n_traslado.findall("cfdi:Traslado", ns):
             list_traslados.append(child.attrib)
 
     # Retenciones
     n_retencion = nodo.find("cfdi:Retenciones", ns)
-    if n_retencion != None:
+    if not n_retencion is None:
         for child in n_retencion.findall("cfdi:Retencion", ns):
             list_retenciones.append(child.attrib)
 
@@ -111,7 +111,7 @@ def insert_cfdis(list_files: List[str], folder_extract: str, info_head: dict) ->
 
         # CfdiRelacionado
         n_cfdirelacionados = root.find("cfdi:CfdiRelacionados", ns)
-        if n_cfdirelacionados != None:
+        if not n_cfdirelacionados is None:
             new_cfdi.update({"CfdiRelacionado": {
                 "TipoRelacion": n_cfdirelacionados.attrib["TipoRelacion"],
                 "CfdiRelacionados": extract_data_nodo_attr(
@@ -137,7 +137,7 @@ def insert_cfdis(list_files: List[str], folder_extract: str, info_head: dict) ->
 
             # Impuestos
             n_impuestos = concepto.find("cfdi:Impuestos", ns)
-            if n_impuestos != None:
+            if not n_impuestos is None:
                 concepto_impuestos = {}
                 list_tras, list_reten = impuestos_reten_trasl(n_impuestos)
                 if list_tras:
@@ -161,7 +161,7 @@ def insert_cfdis(list_files: List[str], folder_extract: str, info_head: dict) ->
 
             # CuentaPredial
             n_cuenta_predial = concepto.find("cfdi:CuentaPredial", ns)
-            if n_cuenta_predial != None:
+            if not n_cuenta_predial is None:
                 new_concepto.update(
                     {"CuentaPredial": n_cuenta_predial.attrib["Numero"]})
 
@@ -188,7 +188,7 @@ def insert_cfdis(list_files: List[str], folder_extract: str, info_head: dict) ->
 
         # Impuestos
         n_impuestos = root.find("cfdi:Impuestos", ns)
-        if n_impuestos != None:
+        if not n_impuestos is None:
             new_impuestos = n_impuestos.attrib
             list_tras, list_reten = impuestos_reten_trasl(n_impuestos)
             if list_tras:

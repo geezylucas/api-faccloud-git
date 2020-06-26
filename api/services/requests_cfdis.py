@@ -2,6 +2,7 @@ from api import create_app
 from datetime import datetime, timedelta
 from bson.json_util import dumps, json
 from bson.objectid import ObjectId
+from typing import Union
 from cfdiclient import Autenticacion
 from cfdiclient import SolicitaDescarga
 from cfdiclient import VerificaSolicitudDescarga
@@ -15,7 +16,7 @@ db = LocalProxy(get_db)
 app = create_app()
 
 
-def pagination_requests(page_size: int, page_num: int, info_id: str, filters: dict or None):
+def pagination_requests(page_size: int, page_num: int, info_id: str, filters: Union[dict, None]):
     """
     Function for search records in requestsCfdis
     """
@@ -76,7 +77,7 @@ def pagination_requests(page_size: int, page_num: int, info_id: str, filters: di
     return dumps(requests_cfdi), dumps(data_pagination)
 
 
-def insert_request_func(info_id: ObjectId, date_ini: datetime, date_fin: datetime, type_request: str, auto_or_man: str, rfc_applicant: str) -> str or None:
+def insert_request_func(info_id: ObjectId, date_ini: datetime, date_fin: datetime, type_request: str, auto_or_man: str, rfc_applicant: str) -> Union[str, None]:
     """
     Function for search request and insert
     """
@@ -128,7 +129,7 @@ def insert_request_func(info_id: ObjectId, date_ini: datetime, date_fin: datetim
 
 
 # 0:request_id: str, 1:info_id: ObjectId, 2:request: str, 3:rfc: str
-def insert_many_cfdis_func(*args) -> int or None:
+def insert_many_cfdis_func(*args) -> Union[int, None]:
     """
     Function to search package from SAT
     """
@@ -168,7 +169,7 @@ def insert_many_cfdis_func(*args) -> int or None:
 
                     if result_download['paquete_b64'] is None:
                         if request_type == 'a':
-                            app.apscheduler.remove_job(request_id)
+                            delete_job(request_id)
                             print('beep cfdi remove: ' + request_id)
 
                         return None
@@ -181,7 +182,7 @@ def insert_many_cfdis_func(*args) -> int or None:
                     # END For packages
 
                 if request_type == 'a':
-                    app.apscheduler.remove_job(request_id)
+                    delete_job(request_id)
                     print('beep cfdi remove: ' + request_id)
                 # Actualizamos la solicitud
                 return db.requestsCfdis.update_one(
@@ -195,7 +196,7 @@ def insert_many_cfdis_func(*args) -> int or None:
                 ).modified_count
             elif check_download['estado_solicitud'] == '5' and check_download['cod_estatus'] == '5000':
                 if request_type == 'a':
-                    app.apscheduler.remove_job(request_id)
+                    delete_job(request_id)
                     print('beep cfdi remove: ' + request_id)
                 # Actualizamos la solicitud
                 return db.requestsCfdis.update_one(
@@ -211,23 +212,12 @@ def insert_many_cfdis_func(*args) -> int or None:
         else:
             # TODO: guardar el error
             if request_type == 'a':
-                app.apscheduler.remove_job(request_id)
+                delete_job(request_id)
                 print('beep cfdi remove: ' + request_id)
             return None
 
 
-def create_jobs_download(request_id: str, info_id: ObjectId, rfc_applicant: str):
-    """
-    Function for create job to download
-    """
-    app.apscheduler.add_job(func=insert_many_cfdis_func,
-                            trigger='interval',
-                            args=[request_id, info_id, 'a', rfc_applicant],
-                            minutes=2,
-                            id=request_id)
-
-
-def insert_request_automatically(info_id):
+def insert_request_automatically(info_id: str):
     """
     Function for search requests and create downloads automatically
     """
@@ -255,10 +245,10 @@ def insert_request_automatically(info_id):
                                                     }.items()))
 
     # TODO: si es nuevo, preguntar al pratrón desde que día pedimos los cfdis DATE_INI DATE_FIN
-    date_ini = last_req_receptor['dateend'] + timedelta(
-        seconds=1) if last_req_receptor is not None else datetime(2019, 12, 2, 0, 0, 0)
-    date_fin = last_req_receptor['dateend'] + timedelta(
-        days=5) if last_req_receptor is not None else datetime(2019, 12, 4, 23, 59, 59)
+    date_ini = last_req_receptor['dateend'] + timedelta(seconds=1) \
+        if last_req_receptor is not None else datetime(2020, 12, 0, 0, 0, 0)
+    date_fin = last_req_receptor['dateend'] + timedelta(days=5) \
+        if last_req_receptor is not None else datetime(2019, 12, 3, 23, 59, 59)
 
     id_req_receptor = insert_request_func(info_id=applicant['_id'],
                                           date_ini=date_ini,
@@ -267,10 +257,10 @@ def insert_request_automatically(info_id):
                                           auto_or_man='a',
                                           rfc_applicant=applicant['rfc'])
 
-    date_ini = last_req_emisor['dateend'] + timedelta(
-        seconds=1) if last_req_emisor is not None else datetime(2020, 1, 3, 0, 0, 0)
-    date_fin = last_req_emisor['dateend'] + timedelta(
-        days=5) if last_req_emisor is not None else datetime(2020, 1, 5, 23, 59, 59)
+    date_ini = last_req_emisor['dateend'] + timedelta(seconds=1) \
+        if last_req_emisor is not None else datetime(2020, 12, 0, 0, 0, 0)
+    date_fin = last_req_emisor['dateend'] + timedelta(days=5) \
+        if last_req_emisor is not None else datetime(2020, 12, 3, 23, 59, 59)
 
     id_req_emisor = insert_request_func(info_id=applicant['_id'],
                                         date_ini=date_ini,
@@ -282,10 +272,46 @@ def insert_request_automatically(info_id):
     # Agregamos los nuevos jobs para solicitar descarga
     if id_req_receptor is not None:
         create_jobs_download(request_id=id_req_receptor,
-                             info_id=applicant['_id'],
-                             rfc_applicant=applicant['rfc'])
+                             info_id=ObjectId(applicant['_id']),
+                             rfc_applicant=str(applicant['rfc']))
 
     if id_req_emisor is not None:
         create_jobs_download(request_id=id_req_emisor,
-                             info_id=applicant['_id'],
-                             rfc_applicant=applicant['rfc'])
+                             info_id=ObjectId(applicant['_id']),
+                             rfc_applicant=str(applicant['rfc']))
+
+
+def get_job(id: str):
+    """
+    Function to search job
+    """
+    return app.apscheduler.get_job(id)
+
+
+def create_jobs_download(request_id: str, info_id: ObjectId, rfc_applicant: str):
+    """
+    Function for create job to download
+    """
+    app.apscheduler.add_job(func=insert_many_cfdis_func,
+                            trigger='interval',
+                            args=[request_id, info_id, 'a', rfc_applicant],
+                            minutes=2,
+                            id=request_id)
+
+
+def create_jobs_requests(info_id: str, time: int, args: list):
+    """
+    Function for create job to request
+    """
+    app.apscheduler.add_job(func=insert_request_automatically,
+                            trigger='interval',
+                            args=args,
+                            minutes=time,
+                            id=info_id)
+
+
+def delete_job(id: str):
+    """
+    Function to delete job
+    """
+    app.apscheduler.remove_job(id)

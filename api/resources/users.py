@@ -1,11 +1,12 @@
 import bcrypt
-from datetime import datetime
+from datetime import datetime, timedelta
 from flask import Blueprint, request, jsonify
 from bson.json_util import dumps, json
 from bson.objectid import ObjectId
 from api.services.users import convert_pwd
 from api.db import get_db
 from werkzeug.local import LocalProxy
+from api.services.utils import create_token
 
 # Use LocalProxy to read the global db instance with just `db`
 db = LocalProxy(get_db)
@@ -24,7 +25,10 @@ def login():
 
     if user is not None:
         if bcrypt.checkpw(bytes(body['password'].encode('utf-8')), user['password']):
-            return jsonify({'status': 'success'}), 200
+            token = create_token({'username': 'geezylucas',
+                                  'exp': datetime.utcnow() + timedelta(minutes=5)}
+                                 ).decode('utf-8')
+            return jsonify({'status': 'success', 'data': {'token': token}}), 200
         else:
             print("does not match")
             return jsonify({'status': 'error'}), 401
