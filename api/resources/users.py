@@ -21,16 +21,15 @@ def login():
     body = request.get_json()
 
     user = db.users.find_one(filter={'email': body['email']},
-                             projection={'_id': 0, 'password': 1})
+                             projection={'password': 1})
 
     if user is not None:
         if bcrypt.checkpw(bytes(body['password'].encode('utf-8')), user['password']):
             token = create_token({'username': 'geezylucas',
                                   'exp': datetime.utcnow() + timedelta(minutes=5)}
                                  ).decode('utf-8')
-            return jsonify({'status': 'success', 'data': {'token': token}}), 200
+            return jsonify({'status': 'success', 'data': {'userId': json.loads(dumps(user['_id'])), 'token': token}}), 200
         else:
-            print("does not match")
             return jsonify({'status': 'error'}), 401
 
 

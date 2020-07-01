@@ -10,6 +10,7 @@ from cfdiclient import DescargaMasiva
 from cfdiclient import Fiel
 from werkzeug.local import LocalProxy
 from api.db import get_db
+from pyfcm import FCMNotification
 
 # Use LocalProxy to read the global db instance with just `db`
 db = LocalProxy(get_db)
@@ -184,6 +185,7 @@ def insert_many_cfdis_func(*args) -> Union[int, None]:
                 if request_type == 'a':
                     delete_job(request_id)
                     print('beep cfdi remove: ' + request_id)
+                    send_notification(request_id)
                 # Actualizamos la solicitud
                 return db.requestsCfdis.update_one(
                     {"_id": request_id},
@@ -198,6 +200,7 @@ def insert_many_cfdis_func(*args) -> Union[int, None]:
                 if request_type == 'a':
                     delete_job(request_id)
                     print('beep cfdi remove: ' + request_id)
+                    send_notification(request_id)
                 # Actualizamos la solicitud
                 return db.requestsCfdis.update_one(
                     {"_id": request_id},
@@ -214,6 +217,7 @@ def insert_many_cfdis_func(*args) -> Union[int, None]:
             if request_type == 'a':
                 delete_job(request_id)
                 print('beep cfdi remove: ' + request_id)
+                send_notification(request_id)
             return None
 
 
@@ -315,3 +319,18 @@ def delete_job(id: str):
     Function to delete job
     """
     app.apscheduler.remove_job(id)
+
+
+def send_notification(request_id: str):
+    """
+    Function for send notification to device
+    """
+    push_service = FCMNotification(
+        api_key="AAAAI4MAUJI:APA91bFvIZ09iWATXfk4lggfaKDCrpG2oDUKm91YlpLzqRoQexYhwjXZaiXKjZ0gvGVSlXL9qVDSBLQz2pM6iirGVBg9_NJdT0W3C3pb7m6F3y6oFAgDz-R0uboFJul0Ay6LcyFFDl4_")
+    registration_id = "ejN9LkS1Qh6cGaSJHwI_t2:APA91bGyh9OTppC-io2BYgH8Lquc0aH2kqc6AjCXcCV6Kb1aRanqd34o5ouGthcf1SHo5zgl4YSvhtAEConDF9VHx4XFO-2E1ZnbxBZHykHN1Z7tz8i48QPHcmSOiUUy5hvkKbGgcMXi"
+    message_title = "Descarga automática"
+    message_body = "Se descargó un paquete {}".format(request_id)
+    result = push_service.notify_single_device(
+        registration_id=registration_id, message_title=message_title, message_body=message_body)
+
+    print(result)
