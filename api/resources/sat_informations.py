@@ -12,8 +12,8 @@ bp = Blueprint('satinformations', __name__)
 
 
 @bp.route('/<info_id>', methods=['GET'])
-#@token_required
-#data param
+# @token_required
+# data param
 def get_sat_info(info_id):
     """
     Endpoint for get info by app movil
@@ -40,7 +40,6 @@ def update_settings(info_id):
     if bool(body['timerautomatic']):
         pending_req_receptor = list(db.requestsCfdis.find(filter={'info_id': ObjectId(applicant['_id']),
                                                                   'typerequest': 'r',
-                                                                  'request': 'a',
                                                                   'status': False},
                                                           sort=list({
                                                               'daterequest': -1
@@ -48,7 +47,6 @@ def update_settings(info_id):
 
         pending_req_emisor = list(db.requestsCfdis.find(filter={'info_id': ObjectId(applicant['_id']),
                                                                 'typerequest': 'e',
-                                                                'request': 'a',
                                                                 'status': False},
                                                         sort=list({
                                                             'daterequest': -1
