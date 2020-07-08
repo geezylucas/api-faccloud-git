@@ -12,9 +12,8 @@ bp = Blueprint('satinformations', __name__)
 
 
 @bp.route('/<info_id>', methods=['GET'])
-# @token_required
-# data param
-def get_sat_info(info_id):
+@token_required
+def get_sat_info(data, info_id):
     """
     Endpoint for get info by app movil
     """

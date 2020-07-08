@@ -6,24 +6,52 @@ from bson.objectid import ObjectId
 from api.services.users import convert_pwd
 from api.db import get_db
 from werkzeug.local import LocalProxy
-from api.services.utils import create_token
+from api.services.utils import create_token, token_required
 
 # Use LocalProxy to read the global db instance with just `db`
 db = LocalProxy(get_db)
 bp = Blueprint('users', __name__)
 
 
-@bp.route('/<user_id>', methods=['GET'])
-def get_user(user_id):
-    user = db.users.find_one(filter={'_id': ObjectId(user_id)},
-                             projection={'password': 0, 'status': 0})
-    sat_info = db.satInformations.find_one(filter={'user_id': user['_id']},
-                                           projection={'user_id': 0,
-                                                       'settingsrfc.timerautomatic': 0,
-                                                       'settingsrfc.usocfdis': 0})
+@bp.route('/', methods=['GET'])
+@token_required
+def get_user(data):
+    """
+    Endpoint for get user by payload from token
+    """
+    # TODO: Validate if user isn't type of None
+    user = list(db.users.aggregate([
+        {
+            '$match': {
+                '_id': ObjectId(data['userId'])
+            }
+        }, {
+            '$project': {
+                'password': 0,
+                'status': 0
+            }
+        }, {
+            '$lookup': {
+                'from': 'satInformations',
+                'localField': '_id',
+                'foreignField': 'user_id',
+                'as': 'satInfo'
+            }
+        }, {
+            '$unwind': {
+                'path': '$satInfo'
+            }
+        }, {
+            '$project': {
+                '_id': 0,
+                'satInfo._id': 0,
+                'satInfo.user_id': 0,
+                'satInfo.settingsrfc.usocfdis': 0
+            }
+        }
+    ]))
 
-    return jsonify({'status': 'success', 'data': {'user': json.loads(dumps(user)),
-                                                  'sat_info': json.loads(dumps(sat_info))}}), 200
+    return jsonify({'status': 'success', 'data': {'user': json.loads(dumps(user[0]))}}), 200
 
 
 @bp.route('/login', methods=['POST'])
@@ -41,19 +69,18 @@ def login():
         sat_info = db.satInformations.find_one(filter={'user_id': user['_id']},
                                                projection={'user_id': 0})
     else:
-        return jsonify({'status': 'error'}), 200
+        return jsonify({'status': 'error', 'message': 'El usuario no existe'}), 200
 
     if user is not None:
         if bcrypt.checkpw(bytes(body['password'].encode('utf-8')), user['password']):
-            token = create_token({'username': 'geezylucas',
+            token = create_token({'userId': str(user['_id']),
+                                  'satInfo': str(sat_info['_id']),
+                                  'rfc': sat_info['rfc'],
                                   'exp': datetime.utcnow() + timedelta(minutes=5)}
                                  ).decode('utf-8')
-            return jsonify({'status': 'success', 'data': {'userId': json.loads(dumps(user['_id'])),
-                                                          'token': token,
-                                                          'name': user['name'],
-                                                          'sat_info': json.loads(dumps(sat_info))}}), 200
+            return jsonify({'status': 'success', 'data': {'token': token}}), 200
         else:
-            return jsonify({'status': 'error'}), 200
+            return jsonify({'status': 'error', 'message': 'Usuario o contraseña incorrectos'}), 200
 
 
 @bp.route('', methods=['POST'])
