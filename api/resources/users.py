@@ -49,9 +49,9 @@ def get_user(data):
                 'satInfo.settingsrfc.usocfdis': 0
             }
         }
-    ]))
+    ]))[0]
 
-    return jsonify({'status': 'success', 'data': {'user': json.loads(dumps(user[0]))}}), 200
+    return jsonify({'status': 'success', 'data': json.loads(dumps(user))}), 200
 
 
 @bp.route('/login', methods=['POST'])
@@ -61,26 +61,50 @@ def login():
     """
     body = request.get_json()
 
-    user = db.users.find_one(filter={'email': body['email']},
-                             projection={'password': 1, 'name': 1})
+    user = list(db.users.aggregate([
+        {
+            '$match': {
+                'email': body['email']
+            }
+        }, {
+            '$project': {
+                'name': 0,
+                'lastname': 0,
+                'phonenumber': 0,
+                'status': 0,
+                'creationdate': 0
+            }
+        }, {
+            '$lookup': {
+                'from': 'satInformations',
+                'localField': '_id',
+                'foreignField': 'user_id',
+                'as': 'satInfo'
+            }
+        }, {
+            '$unwind': {
+                'path': '$satInfo'
+            }
+        }, {
+            '$project': {
+                'satInfo.rfc': 0,
+                'satInfo.user_id': 0,
+                'satInfo.settingsrfc': 0
+            }
+        }
+    ]))
 
-    sat_info = None
-    if not user is None:
-        sat_info = db.satInformations.find_one(filter={'user_id': user['_id']},
-                                               projection={'user_id': 0})
-    else:
-        return jsonify({'status': 'error', 'message': 'El usuario no existe'}), 200
-
-    if user is not None:
-        if bcrypt.checkpw(bytes(body['password'].encode('utf-8')), user['password']):
-            token = create_token({'userId': str(user['_id']),
-                                  'satInfo': str(sat_info['_id']),
-                                  'rfc': sat_info['rfc'],
+    if len(user):
+        if bcrypt.checkpw(bytes(body['password'].encode('utf-8')), user[0]['password']):
+            token = create_token({'userId': str(user[0]['_id']),
+                                  'infoId': str(user[0]['satInfo']['_id']),
                                   'exp': datetime.utcnow() + timedelta(minutes=5)}
                                  ).decode('utf-8')
-            return jsonify({'status': 'success', 'data': {'token': token}}), 200
+            return jsonify({'status': 'success', 'data': token}), 200
         else:
             return jsonify({'status': 'error', 'message': 'Usuario o contraseña incorrectos'}), 200
+    else:
+        return jsonify({'status': 'error', 'message': 'El usuario no existe'}), 200
 
 
 @bp.route('', methods=['POST'])
