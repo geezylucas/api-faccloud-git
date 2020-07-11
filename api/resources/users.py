@@ -3,6 +3,7 @@ from datetime import datetime, timedelta
 from flask import Blueprint, request, jsonify
 from bson.json_util import dumps, json
 from bson.objectid import ObjectId
+from pymongo.errors import DuplicateKeyError
 from api.services.users import convert_pwd
 from api.db import get_db
 from werkzeug.local import LocalProxy
@@ -102,25 +103,17 @@ def login():
                                  ).decode('utf-8')
             return jsonify({'status': 'success', 'data': token}), 200
         else:
-            return jsonify({'status': 'error', 'message': 'Usuario o contraseña incorrectos'}), 200
+            return jsonify({'status': 'error', 'message': 'Usuario o contraseña incorrectos'}), 401
     else:
-        return jsonify({'status': 'error', 'message': 'El usuario no existe'}), 200
+        return jsonify({'status': 'error', 'message': 'El usuario no existe'}), 400
 
 
 @bp.route('', methods=['POST'])
-def insert_user():
+def singup():
     """
     Endpoint for insert user
     """
     body = request.get_json()
-
-    path_files = '/Users/geezylucas/Documents/Python37/datasensible/FIEL/'
-    cer = path_files + 'HERMILA GUZMAN - 00001000000504205831.cer'
-    key = path_files + 'HERMILA GUZMAN - Claveprivada_FIEL_PTI121203SZ0_20200615_144223.key'
-    passkeyprivate = 'BEAUGENCY1964'
-
-    cer_der = open(cer, 'rb').read()
-    key_der = open(key, 'rb').read()
 
     db.users.create_index('email', unique=True)
     db.users.create_index('phonenumber', unique=True)
@@ -132,37 +125,42 @@ def insert_user():
         'name': body['name'],
         'lastname': body['lastname'],
         'email': body['email'],
-        'phonenumber': body['phonenumber'],
         'password': pwd_hashed,
         'status': True,
         'creationdate': datetime.now()
     }
 
-    user_inserted_id = db.users.insert_one(user_info).inserted_id
+    user_inserted_id = None
+    info_inserted_id = None
+    try:
+        user_inserted_id = db.users.insert_one(user_info).inserted_id
 
-    sat_info = {
-        'user_id': user_inserted_id,
-        'rfc': body["rfc"],
-        'settingsrfc': {
-            'timerautomatic': False,
-            'timerequest': 0,
-            'usocfdis': {}
+        sat_info = {
+            'user_id': user_inserted_id,
+            'rfc': body["rfc"],
+            'settingsrfc': {
+                'timerautomatic': False,
+                'timerequest': 0,
+                'usocfdis': {}
+            }
         }
-    }
 
-    info_inserted_id = db.satInformations.insert_one(sat_info).inserted_id
+        info_inserted_id = db.satInformations.insert_one(sat_info).inserted_id
+    except DuplicateKeyError:
+        db.users.delete_one(user_inserted_id)
+        return jsonify({'status': 'error', 'message': 'Email o RFC ya existen'}), 400
 
-    efirma = {
-        "info_id": info_inserted_id,
-        "cer": cer_der,
-        "key": key_der,
-        "passkeyprivate": passkeyprivate
-    }
+    token = create_token({'userId': str(user_inserted_id),
+                          'infoId': str(info_inserted_id),
+                          'exp': datetime.utcnow() + timedelta(minutes=5)}
+                         ).decode('utf-8')
+    return jsonify({'status': 'success', 'data': token}), 201
 
-    db.efirmas.insert_one(efirma)
 
-    return jsonify({
-        'status': 'success',
-        'data': {
-            '_id': 'json.loads(dumps({}))'
-        }}), 201
+# path_files = '/Users/geezylucas/Documents/Python37/datasensible/FIEL/'
+# cer = path_files + 'HERMILA GUZMAN - 00001000000504205831.cer'
+# key = path_files + 'HERMILA GUZMAN - Claveprivada_FIEL_PTI121203SZ0_20200615_144223.key'
+# passkeyprivate = 'BEAUGENCY1964'
+
+# cer_der = open(cer, 'rb').read()
+# key_der = open(key, 'rb').read()
