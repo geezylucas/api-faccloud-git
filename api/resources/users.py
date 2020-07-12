@@ -47,7 +47,6 @@ def get_user(data):
                 '_id': 0,
                 'satInfo._id': 0,
                 'satInfo.user_id': 0,
-                'satInfo.settingsrfc.usocfdis': 0
             }
         }
     ]))[0]

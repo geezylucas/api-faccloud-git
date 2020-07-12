@@ -11,6 +11,7 @@ from cfdiclient import Fiel
 from werkzeug.local import LocalProxy
 from api.db import get_db
 from pyfcm import FCMNotification
+from requests.exceptions import ConnectionError
 
 # Use LocalProxy to read the global db instance with just `db`
 db = LocalProxy(get_db)
@@ -90,6 +91,7 @@ def insert_request_func(info_id: ObjectId, date_ini: datetime, date_fin: datetim
 
         # 1. Token
         auth = Autenticacion(fiel)
+
         token = auth.obtener_token()
         # 2. Solicitud
         request_download = SolicitaDescarga(fiel)
@@ -110,23 +112,20 @@ def insert_request_func(info_id: ObjectId, date_ini: datetime, date_fin: datetim
                                                                  fecha_final=date_fin,
                                                                  rfc_receptor=rfc_applicant)
 
-        # TODO: almacenar el error cod_estatus
-        if "cod_estatus" in result_request.keys():
-            if result_request["cod_estatus"] == '5000':
-                return db.requestsCfdis.insert_one({
-                    "_id": result_request["id_solicitud"],
-                    "info_id": info_id,
-                    "typerequest": type_request,
-                    "daterequest": datetime.now(),
-                    "status": False,
-                    "datestart": date_ini,
-                    "dateend": date_fin,
-                    "request": auto_or_man
-                }).inserted_id
-            else:
-                return None
-
-        return None
+        # TODO: almacenar el error cod_estatus, checar el -1 para responder con el codigo correcto
+        if result_request["cod_estatus"] == '5000':
+            return db.requestsCfdis.insert_one({
+                "_id": result_request["id_solicitud"],
+                "info_id": info_id,
+                "typerequest": type_request,
+                "daterequest": datetime.now(),
+                "status": False,
+                "datestart": date_ini,
+                "dateend": date_fin,
+                "request": auto_or_man
+            }).inserted_id
+        else:
+            return -1
 
 
 # 0:request_id: str, 1:info_id: ObjectId, 2:request: str, 3:rfc: str

@@ -4,14 +4,16 @@ from bson.json_util import dumps, json
 from bson.objectid import ObjectId
 from werkzeug.local import LocalProxy
 from api.db import get_db
+from api.services.utils import token_required
 
 # Use LocalProxy to read the global db instance with just `db`
 db = LocalProxy(get_db)
 bp = Blueprint('requestscfdis', __name__)
 
 
-@bp.route('/getrequests/<info_id>', methods=['GET', 'POST'])
-def get_requests(info_id):
+@bp.route('/getrequests/', methods=['GET', 'POST'])
+@token_required
+def get_requests(data):
     """
     Endpoint for search with filters (dateIni, dateFin) records in requests Cfdis 
     and return data and pagination
@@ -26,7 +28,7 @@ def get_requests(info_id):
 
     requests_cfdis, data_pagination = pagination_requests(page_size=page_size,
                                                           page_num=page_num,
-                                                          info_id=info_id,
+                                                          info_id=data['infoId'],
                                                           filters=body
                                                           )
     return jsonify({'status': 'success', 'data': {
@@ -36,7 +38,8 @@ def get_requests(info_id):
 
 
 @bp.route('/<request_id>', methods=['GET'])
-def get_request(request_id):
+@token_required
+def get_request(data, request_id):
     """
     Endpoint for search only record in requests Cfdis 
     """
@@ -46,7 +49,8 @@ def get_request(request_id):
 
 
 @bp.route('', methods=['POST'])
-def insert_request_manually():
+@token_required
+def insert_request_manually(data):
     """
     Endpoint for request and insert in requests Cfdis 
     """
@@ -58,7 +62,7 @@ def insert_request_manually():
     date_fin = datetime.strptime(
         body['dateFin'], '%Y-%m-%d') + timedelta(hours=23, minutes=59, seconds=59)
 
-    applicant = db.satInformations.find_one(filter={'_id': ObjectId(body['infoId'])},
+    applicant = db.satInformations.find_one(filter={'_id': ObjectId(data['infoId'])},
                                             projection={'rfc': 1})
 
     result_insert_request = insert_request_func(info_id=applicant['_id'],
@@ -71,4 +75,4 @@ def insert_request_manually():
     if result_insert_request is not None:
         return jsonify({'status': 'success', 'data': {'_id': result_insert_request, 'message': 'OK'}}), 201
     else:
-        return jsonify({'status': 'error', 'data': {'_id': None, 'message': 'Error'}}), 200
+        return jsonify({'status': 'error', 'message': 'Error con el SAT, intentar más tarde'}), 500

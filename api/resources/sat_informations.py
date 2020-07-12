@@ -22,8 +22,9 @@ def get_sat_info(data, info_id):
     return jsonify({'status': 'success', 'data': json.loads(dumps(sat_info))}), 200
 
 
-@bp.route('/updatesettings/<info_id>', methods=['PATCH'])
-def update_settings(info_id):
+@bp.route('/updatesettings', methods=['PATCH'])
+@token_required
+def update_settings(data):
     """
     Endpoint to update settingsrfc.usocfdis by id
     """
@@ -31,11 +32,12 @@ def update_settings(info_id):
         get_job, delete_job
 
     body = request.get_json()
-    applicant = db.satInformations.find_one(filter={'_id': ObjectId(info_id)},
+    applicant = db.satInformations.find_one(filter={'_id': ObjectId(data['infoId'])},
                                             projection={'rfc': 1, 'settingsrfc.timerequest': 1})
 
-    job_request = get_job(info_id)
     # BEGIN downdload automatically
+    job_request = get_job(data['infoId'])
+
     if bool(body['timerautomatic']):
         pending_req_receptor = list(db.requestsCfdis.find(filter={'info_id': ObjectId(applicant['_id']),
                                                                   'typerequest': 'r',
@@ -64,19 +66,19 @@ def update_settings(info_id):
 
         if not job_request is None:
             if int(body['timerequest']) != int(applicant['settingsrfc']['timerequest']):
-                delete_job(info_id)
+                delete_job(data['infoId'])
                 # Cambiar a dias
-                create_jobs_requests(info_id=info_id,
+                create_jobs_requests(info_id=data['infoId'],
                                      time=int(body['timerequest']),
-                                     args=[info_id])
+                                     args=[data['infoId']])
         else:
             # Cambiar a dias
-            create_jobs_requests(info_id=info_id,
+            create_jobs_requests(info_id=data['infoId'],
                                  time=int(body['timerequest']),
-                                 args=[info_id])
+                                 args=[data['infoId']])
     else:
         if not job_request is None:
-            delete_job(info_id)
+            delete_job(data['infoId'])
 
     # END downdload automatically
     # BEGIN uso cfdis
@@ -88,7 +90,7 @@ def update_settings(info_id):
     uso_cfdis = db.catalogs.find_one(filter={'type': 'cfdis'},
                                      projection=projec_usos_cfdi)
     # END uso cfdis
-    update_uso_cfdis = db.satInformations.update_one({'_id': ObjectId(info_id)},
+    update_uso_cfdis = db.satInformations.update_one({'_id': ObjectId(data['infoId'])},
                                                      {'$set': {
                                                          'settingsrfc.usocfdis': uso_cfdis['usocfdi'],
                                                          'settingsrfc.timerautomatic': body['timerautomatic'],

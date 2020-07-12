@@ -6,6 +6,7 @@ from bson.json_util import dumps, json
 from bson.objectid import ObjectId
 from werkzeug.local import LocalProxy
 from api.db import get_db
+from api.services.utils import token_required
 
 # Use LocalProxy to read the global db instance with just `db`
 db = LocalProxy(get_db)
@@ -13,7 +14,8 @@ bp = Blueprint('cfdis', __name__)
 
 
 @bp.route('/lastcfditotype/<info_rfc>', methods=['GET'])
-def last_cdfi_to_type(info_rfc):
+@token_required
+def last_cdfi_to_type(data, info_rfc):
     """
     Endpoint for search last cfdi emisor and receptor by RFC
     """
@@ -32,7 +34,8 @@ def last_cdfi_to_type(info_rfc):
 
 
 @bp.route('/<cfdi_id>', methods=['GET'])
-def get_cfdi(cfdi_id):
+@token_required
+def get_cfdi(data, cfdi_id):
     """
     Endpoint for search only record in cfdis
     """
@@ -59,7 +62,8 @@ def get_cfdi(cfdi_id):
 
 
 @bp.route('/getcfdis/<info_rfc>', methods=['GET', 'POST'])
-def get_cfdis(info_rfc):
+@token_required
+def get_cfdis(data, info_rfc):
     """
     Endpoint for search with filters (dateIni, dateFin, rfc, usoCfdi) records in cfdis
     and return data and pagination
