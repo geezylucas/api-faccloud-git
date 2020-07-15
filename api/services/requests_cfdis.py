@@ -125,7 +125,7 @@ def insert_request_func(info_id: ObjectId, date_ini: datetime, date_fin: datetim
                 "request": auto_or_man
             }).inserted_id
         else:
-            return -1
+            return None
 
 
 # 0:request_id: str, 1:info_id: ObjectId, 2:request: str, 3:rfc: str
@@ -184,7 +184,7 @@ def insert_many_cfdis_func(*args) -> Union[int, None]:
                 if request_type == 'a':
                     delete_job(request_id)
                     print('beep cfdi remove: ' + request_id)
-                    send_notification(request_id)
+                    send_notification(request_id, info_id)
                 # Actualizamos la solicitud
                 return db.requestsCfdis.update_one(
                     {"_id": request_id},
@@ -199,7 +199,7 @@ def insert_many_cfdis_func(*args) -> Union[int, None]:
                 if request_type == 'a':
                     delete_job(request_id)
                     print('beep cfdi remove: ' + request_id)
-                    send_notification(request_id)
+                    send_notification(request_id, info_id)
                 # Actualizamos la solicitud
                 return db.requestsCfdis.update_one(
                     {"_id": request_id},
@@ -216,7 +216,6 @@ def insert_many_cfdis_func(*args) -> Union[int, None]:
             if request_type == 'a':
                 delete_job(request_id)
                 print('beep cfdi remove: ' + request_id)
-                send_notification(request_id)
             return None
 
 
@@ -249,9 +248,9 @@ def insert_request_automatically(info_id: str):
 
     # TODO: si es nuevo, preguntar al pratrón desde que día pedimos los cfdis DATE_INI DATE_FIN
     date_ini = last_req_receptor['dateend'] + timedelta(seconds=1) \
-        if last_req_receptor is not None else datetime(2020, 12, 0, 0, 0, 0)
-    date_fin = last_req_receptor['dateend'] + timedelta(days=5) \
-        if last_req_receptor is not None else datetime(2019, 12, 3, 23, 59, 59)
+        if last_req_receptor is not None else datetime(2019, 1, 4, 0, 0, 0)
+    date_fin = last_req_receptor['dateend'] + timedelta(days=3) \
+        if last_req_receptor is not None else datetime(2019, 1, 6, 23, 59, 59)
 
     id_req_receptor = insert_request_func(info_id=applicant['_id'],
                                           date_ini=date_ini,
@@ -261,9 +260,9 @@ def insert_request_automatically(info_id: str):
                                           rfc_applicant=applicant['rfc'])
 
     date_ini = last_req_emisor['dateend'] + timedelta(seconds=1) \
-        if last_req_emisor is not None else datetime(2020, 12, 0, 0, 0, 0)
-    date_fin = last_req_emisor['dateend'] + timedelta(days=5) \
-        if last_req_emisor is not None else datetime(2020, 12, 3, 23, 59, 59)
+        if last_req_emisor is not None else datetime(2019, 1, 1, 0, 0, 0)
+    date_fin = last_req_emisor['dateend'] + timedelta(days=3) \
+        if last_req_emisor is not None else datetime(2019, 1, 5, 23, 59, 59)
 
     id_req_emisor = insert_request_func(info_id=applicant['_id'],
                                         date_ini=date_ini,
@@ -320,16 +319,48 @@ def delete_job(id: str):
     app.apscheduler.remove_job(id)
 
 
-def send_notification(request_id: str):
+def send_notification(request_id: str, info_id: str):
     """
     Function for send notification to device
     """
-    push_service = FCMNotification(
-        api_key="AAAAI4MAUJI:APA91bFvIZ09iWATXfk4lggfaKDCrpG2oDUKm91YlpLzqRoQexYhwjXZaiXKjZ0gvGVSlXL9qVDSBLQz2pM6iirGVBg9_NJdT0W3C3pb7m6F3y6oFAgDz-R0uboFJul0Ay6LcyFFDl4_")
-    registration_id = "ejN9LkS1Qh6cGaSJHwI_t2:APA91bGyh9OTppC-io2BYgH8Lquc0aH2kqc6AjCXcCV6Kb1aRanqd34o5ouGthcf1SHo5zgl4YSvhtAEConDF9VHx4XFO-2E1ZnbxBZHykHN1Z7tz8i48QPHcmSOiUUy5hvkKbGgcMXi"
-    message_title = "Descarga automática"
-    message_body = "Se descargó un paquete {}".format(request_id)
-    result = push_service.notify_single_device(
-        registration_id=registration_id, message_title=message_title, message_body=message_body)
+    with app.app_context():
+        phoneTokens = list(db.satInformations.aggregate([
+            {
+                '$match': {
+                    '_id': ObjectId(info_id)
+                }
+            }, {
+                '$project': {
+                    '_id': 0,
+                    'rfc': 0,
+                    'settingsrfc': 0
+                }
+            }, {
+                '$lookup': {
+                    'from': 'phoneTokens',
+                    'localField': 'user_id',
+                    'foreignField': 'user_id',
+                    'as': 'phoneTokens'
+                }
+            },  {
+                '$unwind': {
+                    'path': '$phoneTokens'
+                }
+            }, {
+                '$project': {
+                    'user_id': 0,
+                    'phoneTokens._id': 0,
+                    'phoneTokens.user_id': 0
+                }
+            }
+        ]))
 
-    print(result)
+        if len(phoneTokens):
+            push_service = FCMNotification(
+                api_key="AAAAI4MAUJI:APA91bFvIZ09iWATXfk4lggfaKDCrpG2oDUKm91YlpLzqRoQexYhwjXZaiXKjZ0gvGVSlXL9qVDSBLQz2pM6iirGVBg9_NJdT0W3C3pb7m6F3y6oFAgDz-R0uboFJul0Ay6LcyFFDl4_")
+            registration_id = phoneTokens[0]['phoneTokens']['token']
+            message_title = "Descarga automática de XML"
+            message_body = "Se descargó el paquete {}".format(request_id)
+            result = push_service.notify_single_device(registration_id=registration_id,
+                                                       message_title=message_title,
+                                                       message_body=message_body)

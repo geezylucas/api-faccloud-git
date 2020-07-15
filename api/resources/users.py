@@ -3,6 +3,7 @@ from datetime import datetime, timedelta
 from flask import Blueprint, request, jsonify
 from bson.json_util import dumps, json
 from bson.objectid import ObjectId
+from pymongo import ASCENDING
 from pymongo.errors import DuplicateKeyError
 from api.services.users import convert_pwd
 from api.db import get_db
@@ -14,7 +15,7 @@ db = LocalProxy(get_db)
 bp = Blueprint('users', __name__)
 
 
-@bp.route('/', methods=['GET'])
+@bp.route('/user', methods=['GET'])
 @token_required
 def get_user(data):
     """
@@ -43,14 +44,28 @@ def get_user(data):
                 'path': '$satInfo'
             }
         }, {
+            '$lookup': {
+                'from': 'phoneTokens',
+                'localField': '_id',
+                'foreignField': 'user_id',
+                'as': 'phoneToken'
+            }
+        }, {
+            '$unwind': {
+                'path': '$phoneToken',
+                'preserveNullAndEmptyArrays': True
+            }
+        }, {
             '$project': {
                 '_id': 0,
                 'satInfo._id': 0,
                 'satInfo.user_id': 0,
+                'phoneToken._id': 0,
+                'phoneToken.user_id': 0
             }
         }
     ]))[0]
-
+    
     return jsonify({'status': 'success', 'data': json.loads(dumps(user))}), 200
 
 
@@ -98,7 +113,7 @@ def login():
         if bcrypt.checkpw(bytes(body['password'].encode('utf-8')), user[0]['password']):
             token = create_token({'userId': str(user[0]['_id']),
                                   'infoId': str(user[0]['satInfo']['_id']),
-                                  'exp': datetime.utcnow() + timedelta(minutes=5)}
+                                  'exp': datetime.utcnow() + timedelta(minutes=15)}
                                  ).decode('utf-8')
             return jsonify({'status': 'success', 'data': token}), 200
         else:
@@ -139,7 +154,7 @@ def singup():
             'rfc': body["rfc"],
             'settingsrfc': {
                 'timerautomatic': False,
-                'timerequest': 0,
+                'timerequest': 4,
                 'usocfdis': {}
             }
         }
@@ -156,10 +171,31 @@ def singup():
     return jsonify({'status': 'success', 'data': token}), 201
 
 
-# path_files = '/Users/geezylucas/Documents/Python37/datasensible/FIEL/'
-# cer = path_files + 'HERMILA GUZMAN - 00001000000504205831.cer'
-# key = path_files + 'HERMILA GUZMAN - Claveprivada_FIEL_PTI121203SZ0_20200615_144223.key'
-# passkeyprivate = 'BEAUGENCY1964'
+@bp.route('/updatetokenphone', methods=['PATCH'])
+@token_required
+def update_token_phone(data):
+    body = request.get_json()
 
-# cer_der = open(cer, 'rb').read()
-# key_der = open(key, 'rb').read()
+    db.phoneTokens.create_index([("user_id", ASCENDING),
+                                 ("token", ASCENDING)],
+                                unique=True)
+
+    db.phoneTokens.delete_one({'user_id':  ObjectId(data['userId'])})
+    db.phoneTokens.delete_one({'token': body['token']})
+
+    token_data = {
+        'user_id': ObjectId(data['userId']),
+        'token': body['token']
+    }
+
+    db.phoneTokens.insert_one(token_data)
+
+    return jsonify({'status': 'success'}), 201
+
+    # path_files = '/Users/geezylucas/Documents/Python37/datasensible/FIEL/'
+    # cer = path_files + 'HERMILA GUZMAN - 00001000000504205831.cer'
+    # key = path_files + 'HERMILA GUZMAN - Claveprivada_FIEL_PTI121203SZ0_20200615_144223.key'
+    # passkeyprivate = 'BEAUGENCY1964'
+
+    # cer_der = open(cer, 'rb').read()
+    # key_der = open(key, 'rb').read()

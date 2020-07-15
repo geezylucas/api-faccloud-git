@@ -73,6 +73,6 @@ def insert_request_manually(data):
                                                 rfc_applicant=applicant['rfc'])
 
     if result_insert_request is not None:
-        return jsonify({'status': 'success', 'data': {'_id': result_insert_request, 'message': 'OK'}}), 201
+        return jsonify({'status': 'success', 'data': result_insert_request}), 201
     else:
         return jsonify({'status': 'error', 'message': 'Error con el SAT, intentar más tarde'}), 500
