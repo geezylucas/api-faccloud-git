@@ -128,6 +128,7 @@ def signup():
         'name': body['name'],
         'lastname': body['lastname'],
         'email': body['email'],
+        'phonenumber': body['phonenumber'],
         'password': pwd_hashed,
         'status': True,
         'creationdate': datetime.now()

@@ -6,7 +6,7 @@ import uuid
 from datetime import datetime, timedelta
 from typing import List, Tuple
 from bson.decimal128 import Decimal128
-import xml.etree.ElementTree as et
+import xml.etree.ElementTree as eT
 from xml.etree.ElementTree import Element
 from bson.json_util import dumps
 from werkzeug.local import LocalProxy
@@ -74,7 +74,7 @@ def insert_cfdis(list_files: List[str], folder_extract: str, info_head: dict) ->
     """
     cfdis_to_insert = []
     for f in list_files:
-        tree = et.parse(folder_extract + '/' + f)
+        tree = eT.parse(folder_extract + '/' + f)
         root = tree.getroot()
 
         new_cfdi = {}

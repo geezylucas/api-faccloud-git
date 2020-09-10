@@ -1,14 +1,12 @@
-from api import create_app
 from datetime import datetime, timedelta
 from bson.json_util import dumps
 from bson.objectid import ObjectId
-from typing import Union, List
+from typing import Union
 from werkzeug.local import LocalProxy
 from api.db import get_db
 
 # Use LocalProxy to read the global db instance with just `db`
 db = LocalProxy(get_db)
-app = create_app()
 
 
 def pagination_requests(page_size: int, page_num: int, info_id: str, filters: Union[dict, None]):

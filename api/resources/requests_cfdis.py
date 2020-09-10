@@ -1,5 +1,4 @@
 from flask import Blueprint, request, jsonify
-from datetime import datetime, timedelta
 from bson.json_util import dumps, json
 from bson.objectid import ObjectId
 from werkzeug.local import LocalProxy
@@ -60,6 +59,7 @@ def insert_request_manually(data):
     applicant = db.satInformations.find_one(filter={'_id': ObjectId(data['infoId'])}, projection={'rfc': 1})
 
     result_insert_request = insert_request_func(info_id=applicant['_id'],
+                                                request_id='',
                                                 date_ini=body['dateIni'],
                                                 date_fin=body['dateFin'],
                                                 type_request=body['typeRequest'],
