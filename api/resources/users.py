@@ -5,9 +5,9 @@ from bson.json_util import dumps, json
 from bson.objectid import ObjectId
 from pymongo import ASCENDING
 from pymongo.errors import DuplicateKeyError
+from werkzeug.local import LocalProxy
 from api.services.users import convert_pwd
 from api.db import get_db
-from werkzeug.local import LocalProxy
 from api.services.utils import create_token, token_required
 
 # Use LocalProxy to read the global db instance with just `db`
@@ -15,23 +15,21 @@ db = LocalProxy(get_db)
 bp = Blueprint('users', __name__)
 
 
-# TODO: change userId to querystring or email
-@bp.route('/user', methods=['GET'])
+@bp.route('/<email>', methods=['GET'])
 @token_required
-def get_user(data):
+def get_user(data, email):
     """
-    Endpoint for get user by payload from token
+    Endpoint for get user from query string "email"
     """
-    # TODO: Validate if user isn't type of None
     user = list(db.users.aggregate([
         {
             '$match': {
-                '_id': ObjectId(data['userId'])
+                'email': email
             }
         }, {
             '$project': {
                 'password': 0,
-                'status': 0
+                'status': 0,
             }
         }, {
             '$lookup': {
@@ -45,29 +43,18 @@ def get_user(data):
                 'path': '$satInfo'
             }
         }, {
-            '$lookup': {
-                'from': 'phoneTokens',
-                'localField': '_id',
-                'foreignField': 'user_id',
-                'as': 'phoneToken'
-            }
-        }, {
-            '$unwind': {
-                'path': '$phoneToken',
-                'preserveNullAndEmptyArrays': True
-            }
-        }, {
             '$project': {
                 '_id': 0,
                 'satInfo._id': 0,
                 'satInfo.user_id': 0,
-                'phoneToken._id': 0,
-                'phoneToken.user_id': 0
             }
         }
-    ]))[0]
+    ]))
 
-    return jsonify({'status': 'success', 'data': json.loads(dumps(user))}), 200
+    if len(user):
+        return jsonify({'status': 'success', 'data': json.loads(dumps(user[0]))}), 200
+
+    return jsonify({'status': 'error', 'message': "Usuario no existe"}), 404
 
 
 @bp.route('/login', methods=['POST'])
@@ -168,6 +155,7 @@ def signup():
     token = create_token({'infoId': str(info_inserted_id),
                           'exp': datetime.utcnow() + timedelta(minutes=15)
                           }).decode('utf-8')
+
     return jsonify({'status': 'success', 'data': token}), 201
 
 

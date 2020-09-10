@@ -6,7 +6,7 @@ import uuid
 from datetime import datetime, timedelta
 from typing import List, Tuple
 from bson.decimal128 import Decimal128
-import xml.etree.ElementTree as ET
+import xml.etree.ElementTree as et
 from xml.etree.ElementTree import Element
 from bson.json_util import dumps
 from werkzeug.local import LocalProxy
@@ -25,10 +25,10 @@ def extract_attrs_without(dirty_attrs: dict) -> dict:
     """
     Function to filter attributes
     """
-    attrs = dict(filter(lambda elem: not elem[0].startswith('{http')
-                        and not elem[0].startswith('xml')
-                        and not elem[0].startswith('xsi'),
-                        dirty_attrs.items()))
+    attrs = dict(filter(
+        lambda elem: not elem[0].startswith('{http') and not elem[0].startswith('xml') and not elem[0].startswith(
+            'xsi'),
+        dirty_attrs.items()))
 
     return attrs
 
@@ -42,13 +42,13 @@ def impuestos_reten_trasl(nodo: Element) -> Tuple[list, list]:
 
     # Traslados
     n_traslado = nodo.find("cfdi:Traslados", ns)
-    if not n_traslado is None:
+    if n_traslado is not None:
         for child in n_traslado.findall("cfdi:Traslado", ns):
             list_traslados.append(child.attrib)
 
     # Retenciones
     n_retencion = nodo.find("cfdi:Retenciones", ns)
-    if not n_retencion is None:
+    if n_retencion is not None:
         for child in n_retencion.findall("cfdi:Retencion", ns):
             list_retenciones.append(child.attrib)
 
@@ -74,7 +74,7 @@ def insert_cfdis(list_files: List[str], folder_extract: str, info_head: dict) ->
     """
     cfdis_to_insert = []
     for f in list_files:
-        tree = ET.parse(folder_extract + '/' + f)
+        tree = et.parse(folder_extract + '/' + f)
         root = tree.getroot()
 
         new_cfdi = {}
@@ -88,30 +88,25 @@ def insert_cfdis(list_files: List[str], folder_extract: str, info_head: dict) ->
         if db.cfdis.count_documents({'Complemento.TimbreFiscalDigital.UUID': timbre_fiscal_attrs['UUID']}, limit=1):
             continue
 
-        new_cfdi.update({"Complemento": {
-            'TimbreFiscalDigital': timbre_fiscal_attrs
-        }})
+        new_cfdi.update({"Complemento": {'TimbreFiscalDigital': timbre_fiscal_attrs}})
         # END Complemento
 
         attrs_comprobante = extract_attrs_without(root.attrib)
 
         if "SubTotal" in attrs_comprobante.keys():
-            attrs_comprobante.update(
-                {'SubTotal': Decimal128(attrs_comprobante['SubTotal'])})
+            attrs_comprobante.update({'SubTotal': Decimal128(attrs_comprobante['SubTotal'])})
 
         if "Descuento" in attrs_comprobante.keys():
-            attrs_comprobante.update(
-                {'Descuento': Decimal128(attrs_comprobante['Descuento'])})
+            attrs_comprobante.update({'Descuento': Decimal128(attrs_comprobante['Descuento'])})
 
         if "Total" in attrs_comprobante.keys():
-            attrs_comprobante.update(
-                {'Total': Decimal128(attrs_comprobante['Total'])})
+            attrs_comprobante.update({'Total': Decimal128(attrs_comprobante['Total'])})
 
         new_cfdi.update(attrs_comprobante)
 
         # CfdiRelacionado
         n_cfdirelacionados = root.find("cfdi:CfdiRelacionados", ns)
-        if not n_cfdirelacionados is None:
+        if n_cfdirelacionados is not None:
             new_cfdi.update({"CfdiRelacionado": {
                 "TipoRelacion": n_cfdirelacionados.attrib["TipoRelacion"],
                 "CfdiRelacionados": extract_data_nodo_attr(
@@ -137,7 +132,7 @@ def insert_cfdis(list_files: List[str], folder_extract: str, info_head: dict) ->
 
             # Impuestos
             n_impuestos = concepto.find("cfdi:Impuestos", ns)
-            if not n_impuestos is None:
+            if n_impuestos is not None:
                 concepto_impuestos = {}
                 list_tras, list_reten = impuestos_reten_trasl(n_impuestos)
                 if list_tras:
@@ -161,9 +156,8 @@ def insert_cfdis(list_files: List[str], folder_extract: str, info_head: dict) ->
 
             # CuentaPredial
             n_cuenta_predial = concepto.find("cfdi:CuentaPredial", ns)
-            if not n_cuenta_predial is None:
-                new_concepto.update(
-                    {"CuentaPredial": n_cuenta_predial.attrib["Numero"]})
+            if n_cuenta_predial is not None:
+                new_concepto.update({"CuentaPredial": n_cuenta_predial.attrib["Numero"]})
 
             # Parte
             n_parte = concepto.findall("cfdi:Parte", ns)
@@ -188,7 +182,7 @@ def insert_cfdis(list_files: List[str], folder_extract: str, info_head: dict) ->
 
         # Impuestos
         n_impuestos = root.find("cfdi:Impuestos", ns)
-        if not n_impuestos is None:
+        if n_impuestos is not None:
             new_impuestos = n_impuestos.attrib
             list_tras, list_reten = impuestos_reten_trasl(n_impuestos)
             if list_tras:
@@ -220,6 +214,7 @@ def decode_data64_and_insert(data: str, info_head: dict) -> int:
     folder_extract = path_temp + name_rand
 
     decoded = base64.b64decode(data)
+
     with open(zip_path, 'wb') as f:
         f.write(decoded)
 
@@ -231,16 +226,15 @@ def decode_data64_and_insert(data: str, info_head: dict) -> int:
     # Debemos de recorrer file por file de la new folder y almacenar en la bd
     list_files = [f for f in os.listdir(folder_extract)]
 
-    result_num_cfdis = insert_cfdis(list_files=list_files,
-                                    folder_extract=folder_extract,
-                                    info_head=info_head)
+    result_num_cfdis = insert_cfdis(list_files=list_files, folder_extract=folder_extract, info_head=info_head)
 
     shutil.rmtree(folder_extract)
 
     return result_num_cfdis
 
 
-def pagination_cfdis(page_size: int, page_num: int, info_rfc: str, type_comprobante: str, type_request: str, filters: dict):
+def pagination_cfdis(page_size: int, page_num: int, info_rfc: str, type_comprobante: str, type_request: str,
+                     filters: dict):
     """
     Function to search records in cfdis
     """

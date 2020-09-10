@@ -97,26 +97,13 @@ def insert_cfdis_manually():
     from api.services.requests_cfdis import insert_many_cfdis_func
     body = request.get_json()
 
-    applicant = db.satInformations.find_one(filter={'_id': ObjectId(body['infoId'])},
-                                            projection={'rfc': 1})
+    applicant = db.satInformations.find_one(filter={'_id': ObjectId(body['infoId'])}, projection={'rfc': 1})
 
-    result_insert_cfdis = insert_many_cfdis_func(body['requestId'],
-                                                 applicant['_id'],
-                                                 'm',
-                                                 applicant['rfc'])
+    result_insert_cfdis = insert_many_cfdis_func(request_id=body['requestId'],
+                                                 info_id=applicant['_id'],
+                                                 data='')
 
-    if result_insert_cfdis is not None:
-        return jsonify({'status': 'success', 'data': {'modifiedCount': result_insert_cfdis}}), 201
-    else:
-        return jsonify({'status': 'error'}), 500
-
-    # folder_extract = '/Users/geezylucas/Documents/Python/api-general-git/temp/5181BDF8-DB54-49E6-A486-92DC91D1D7EE_01'
-    # result = insert_cfdis(list_files=[f for f in os.listdir(folder_extract)], folder_extract=folder_extract, info_head={
-    #     "request_id": body['requestid'],
-    #     "info_id": body['infoid']
-    # })
-
-    # return jsonify({'result': result}), 200
+    return jsonify({'status': 'success', 'data': result_insert_cfdis}), 201
 
 
 @bp.route('/insertcfdismanually/<info_id>', methods=['POST'])
@@ -131,7 +118,6 @@ def insert_cfdis_by_portal(info_id):
     for file in list(body['files']):
         starter = file.find(',')
         zip_data = file[starter + 1:]
-        num_cfdis = num_cfdis + decode_data64_and_insert(data=zip_data,
-                                                         info_head={"info_id": ObjectId(info_id)})
+        num_cfdis = num_cfdis + decode_data64_and_insert(data=zip_data, info_head={"info_id": ObjectId(info_id)})
 
-    return jsonify({'status': 'OK', 'data': {'cfdisInsertados': num_cfdis}}), 200
+    return jsonify({'status': 'success', 'data': num_cfdis}), 201
