@@ -15,6 +15,7 @@ db = LocalProxy(get_db)
 bp = Blueprint('users', __name__)
 
 
+# TODO: change userId to querystring or email
 @bp.route('/user', methods=['GET'])
 @token_required
 def get_user(data):
@@ -65,7 +66,7 @@ def get_user(data):
             }
         }
     ]))[0]
-    
+
     return jsonify({'status': 'success', 'data': json.loads(dumps(user))}), 200
 
 
@@ -111,10 +112,11 @@ def login():
 
     if len(user):
         if bcrypt.checkpw(bytes(body['password'].encode('utf-8')), user[0]['password']):
-            token = create_token({'userId': str(user[0]['_id']),
-                                  'infoId': str(user[0]['satInfo']['_id']),
+
+            token = create_token({'infoId': str(user[0]['satInfo']['_id']),
                                   'exp': datetime.utcnow() + timedelta(minutes=15)}
                                  ).decode('utf-8')
+
             return jsonify({'status': 'success', 'data': token}), 200
         else:
             return jsonify({'status': 'error', 'message': 'Usuario o contraseña incorrectos'}), 401
@@ -122,8 +124,8 @@ def login():
         return jsonify({'status': 'error', 'message': 'El usuario no existe'}), 400
 
 
-@bp.route('', methods=['POST'])
-def singup():
+@bp.route('/signup', methods=['POST'])
+def signup():
     """
     Endpoint for insert user
     """
@@ -145,7 +147,6 @@ def singup():
     }
 
     user_inserted_id = None
-    info_inserted_id = None
     try:
         user_inserted_id = db.users.insert_one(user_info).inserted_id
 
@@ -154,7 +155,7 @@ def singup():
             'rfc': body["rfc"],
             'settingsrfc': {
                 'timerautomatic': False,
-                'timerequest': 4,
+                'timerequest': 5,
                 'usocfdis': {}
             }
         }
@@ -164,13 +165,13 @@ def singup():
         db.users.delete_one(user_inserted_id)
         return jsonify({'status': 'error', 'message': 'Email o RFC ya existen'}), 400
 
-    token = create_token({'userId': str(user_inserted_id),
-                          'infoId': str(info_inserted_id),
-                          'exp': datetime.utcnow() + timedelta(minutes=5)}
-                         ).decode('utf-8')
+    token = create_token({'infoId': str(info_inserted_id),
+                          'exp': datetime.utcnow() + timedelta(minutes=15)
+                          }).decode('utf-8')
     return jsonify({'status': 'success', 'data': token}), 201
 
 
+# TODO: juntar esto en la table users
 @bp.route('/updatetokenphone', methods=['PATCH'])
 @token_required
 def update_token_phone(data):
@@ -180,7 +181,7 @@ def update_token_phone(data):
                                  ("token", ASCENDING)],
                                 unique=True)
 
-    db.phoneTokens.delete_one({'user_id':  ObjectId(data['userId'])})
+    db.phoneTokens.delete_one({'user_id': ObjectId(data['userId'])})
     db.phoneTokens.delete_one({'token': body['token']})
 
     token_data = {
@@ -191,11 +192,3 @@ def update_token_phone(data):
     db.phoneTokens.insert_one(token_data)
 
     return jsonify({'status': 'success'}), 201
-
-    # path_files = '/Users/geezylucas/Documents/Python37/datasensible/FIEL/'
-    # cer = path_files + 'HERMILA GUZMAN - 00001000000504205831.cer'
-    # key = path_files + 'HERMILA GUZMAN - Claveprivada_FIEL_PTI121203SZ0_20200615_144223.key'
-    # passkeyprivate = 'BEAUGENCY1964'
-
-    # cer_der = open(cer, 'rb').read()
-    # key_der = open(key, 'rb').read()

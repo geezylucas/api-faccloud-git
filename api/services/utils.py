@@ -7,6 +7,7 @@ def token_required(f):
     """
     Wrapped for endpoints which need to auth
     """
+
     @wraps(f)
     def wrapped(*args, **kwargs):
         token = request.headers.get('Authorization', None)
@@ -19,7 +20,8 @@ def token_required(f):
         except:
             return jsonify({'status': 'error', 'message': 'Token is invalid'}), 401
 
-        return f(data, *args,  **kwargs)
+        return f(data, *args, **kwargs)
+
     return wrapped
 
 

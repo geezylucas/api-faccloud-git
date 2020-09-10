@@ -1,6 +1,3 @@
-import os
-import base64
-import zipfile
 from flask import Blueprint, request, jsonify
 from bson.json_util import dumps, json
 from bson.objectid import ObjectId
@@ -133,7 +130,7 @@ def insert_cfdis_by_portal(info_id):
     num_cfdis = 0
     for file in list(body['files']):
         starter = file.find(',')
-        zip_data = file[starter+1:]
+        zip_data = file[starter + 1:]
         num_cfdis = num_cfdis + decode_data64_and_insert(data=zip_data,
                                                          info_head={"info_id": ObjectId(info_id)})
 

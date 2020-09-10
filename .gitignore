@@ -3,6 +3,7 @@
 
 ### macOS ###
 .vscode/
+.idea/
 # General
 temp
 .DS_Store
