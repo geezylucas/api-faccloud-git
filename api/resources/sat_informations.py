@@ -29,16 +29,18 @@ def update_settings(data):
     """
     body = request.get_json()
 
-    projec_usos_cfdi = {'_id': 0}
+    project_usos_cfdi = {'_id': 0}
 
     # create dict to projection in catalogs Collection
-    projec_usos_cfdi.update({'usocfdi.' + uso: 1 for uso in list(body['usocfdis'])})
+    project_usos_cfdi.update({'usocfdi.' + uso: 1 for uso in list(body['usocfdis'])})
 
-    uso_cfdis = db.catalogs.find_one(filter={'type': 'cfdis'}, projection=projec_usos_cfdi)
+    uso_cfdis = db.catalogs.find_one(filter={'type': 'cfdis'}, projection=project_usos_cfdi)
+
+    uso_cfdis_array = [{k: v} for k, v in uso_cfdis['usocfdi'].items()]
 
     db.satInformations.update_one({'_id': ObjectId(data['infoId'])},
                                   {'$set': {
-                                      'settingsrfc.usocfdis': uso_cfdis['usocfdi'],
+                                      'settingsrfc.usocfdis': uso_cfdis_array,
                                       'settingsrfc.timerautomatic': body['timerautomatic'],
                                       'settingsrfc.timerequest': body['timerequest']
                                   }})

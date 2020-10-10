@@ -15,12 +15,14 @@ db = LocalProxy(get_db)
 bp = Blueprint('users', __name__)
 
 
-@bp.route('/<email>', methods=['GET'])
+@bp.route('/getuser', methods=['GET'])
 @token_required
-def get_user(data, email):
+def get_user(data):
     """
     Endpoint for get user from query string "email"
     """
+    email = request.args.get('email')
+
     user = list(db.users.aggregate([
         {
             '$match': {
@@ -28,25 +30,42 @@ def get_user(data, email):
             }
         }, {
             '$project': {
-                'password': 0,
                 'status': 0,
+                'password': 0
             }
         }, {
             '$lookup': {
                 'from': 'satInformations',
                 'localField': '_id',
                 'foreignField': 'user_id',
-                'as': 'satInfo'
+                'as': 'satinfo'
             }
         }, {
             '$unwind': {
-                'path': '$satInfo'
+                'path': '$satinfo'
             }
         }, {
             '$project': {
                 '_id': 0,
-                'satInfo._id': 0,
-                'satInfo.user_id': 0,
+                'satinfo._id': 0,
+                'satinfo.user_id': 0
+            }
+        }, {
+            '$project': {
+                'name': 1,
+                'lastname': 1,
+                'email': 1,
+                'phonenumber': 1,
+                'satinfo.rfc': 1,
+                'satinfo.settingsrfc.timerautomatic': 1,
+                'satinfo.settingsrfc.timerequest': 1,
+                'satinfo.settingsrfc.usocfdis': 1,
+                'datecreation': {
+                    '$dateToString': {
+                        'format': '%Y-%m-%dT%H:%M:%SZ',
+                        'date': '$creationdate'
+                    }
+                }
             }
         }
     ]))
@@ -144,7 +163,7 @@ def signup():
             'settingsrfc': {
                 'timerautomatic': False,
                 'timerequest': 5,
-                'usocfdis': {}
+                'usocfdis': []
             }
         }
 
